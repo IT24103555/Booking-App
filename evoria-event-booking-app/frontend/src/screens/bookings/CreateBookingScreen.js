@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Alert, View, Text, StyleSheet, ScrollView, KeyboardAvoidingView, Platform, TouchableOpacity } from 'react-native';
+import { Alert, View, Text, StyleSheet, ScrollView, KeyboardAvoidingView, Platform, TouchableOpacity, Image } from 'react-native';
 import { eventApi } from '../../api/eventApi';
 import { sessionAgendaApi } from '../../api/sessionAgendaApi';
 import { bookingApi } from '../../api/bookingApi';
@@ -85,7 +85,7 @@ export default function CreateBookingScreen({ route, navigation }) {
               {showEvents && (
                 <View style={styles.listBox}>
                   {events.map((e) => (
-                    <TouchableOpacity key={e._id} style={styles.listItem} onPress={async () => {
+                    <TouchableOpacity key={e._id} style={styles.eventListItem} onPress={async () => {
                       try {
                         setShowEvents(false);
                         setShowTickets(false);
@@ -111,8 +111,18 @@ export default function CreateBookingScreen({ route, navigation }) {
                         setSessions([]);
                       }
                     }}>
-                      <Text style={styles.listItemTitle}>{e.title}</Text>
-                      <Text style={styles.listItemMeta}>{e.venueId?.name || ''} — {e.eventDate ? String(e.eventDate).slice(0,10) : ''}</Text>
+                      {e.image && (
+                        <Image 
+                          source={{ uri: `http://localhost:5000${e.image}` }} 
+                          style={styles.eventListImage}
+                          resizeMode="cover"
+                        />
+                      )}
+                      <View style={styles.eventListContent}>
+                        <Text style={styles.listItemTitle}>{e.title}</Text>
+                        <Text style={styles.listItemMeta}>{e.venueId?.name || ''} — {e.eventDate ? String(e.eventDate).slice(0,10) : ''}</Text>
+                        <Text style={[styles.listItemMeta, { marginTop: 4 }]}>{e.description?.slice(0, 50)}...</Text>
+                      </View>
                     </TouchableOpacity>
                   ))}
                 </View>
@@ -120,16 +130,28 @@ export default function CreateBookingScreen({ route, navigation }) {
             </View>
             {selectedEvent && (
               <View style={[styles.selectorCard, { marginTop: 6 }]}>
-                <Text style={styles.selectorLabel}>Venue</Text>
-                <Text style={{ color: colors.text, fontWeight: '700' }}>{selectedEvent.venueId?.name || '—'}</Text>
-                <Text style={{ color: colors.muted, marginTop: 6 }}>{selectedEvent.venueId?.location || selectedEvent.venueId?.description || ''}</Text>
+                {selectedEvent.image && (
+                  <Image 
+                    source={{ uri: `http://localhost:5000${selectedEvent.image}` }} 
+                    style={styles.selectedEventImage}
+                    resizeMode="cover"
+                  />
+                )}
+                <Text style={[styles.selectorLabel, { marginTop: selectedEvent.image ? 12 : 0 }]}>Event details</Text>
+                <Text style={{ color: colors.text, fontWeight: '700', fontSize: 16 }}>{selectedEvent.title}</Text>
+                <Text style={{ color: colors.muted, marginTop: 6, lineHeight: 20 }}>{selectedEvent.description}</Text>
+                <View style={{ marginTop: 12, paddingTop: 12, borderTopWidth: 1, borderTopColor: colors.border }}>
+                  <Text style={styles.selectorLabel}>Venue</Text>
+                  <Text style={{ color: colors.text, fontWeight: '700' }}>{selectedEvent.venueId?.name || '—'}</Text>
+                  <Text style={{ color: colors.muted, marginTop: 4 }}>{selectedEvent.venueId?.location || selectedEvent.venueId?.description || ''}</Text>
+                </View>
                 {sessions.length > 0 && (
-                  <View style={{ marginTop: 12 }}>
+                  <View style={{ marginTop: 12, paddingTop: 12, borderTopWidth: 1, borderTopColor: colors.border }}>
                     <Text style={styles.selectorLabel}>Sessions</Text>
                     {sessions.map((s) => (
                       <View key={s._id} style={{ marginTop: 6 }}>
                         <Text style={{ color: colors.text, fontWeight: '700' }}>{s.title}</Text>
-                        <Text style={{ color: colors.muted }}>{s.startTime ? `${s.startTime} — ${s.endTime || ''}` : s.description}</Text>
+                        <Text style={{ color: colors.muted, fontSize: 12 }}>{s.startTime ? `${s.startTime} — ${s.endTime || ''}` : s.description}</Text>
                       </View>
                     ))}
                   </View>
@@ -188,8 +210,12 @@ const styles = StyleSheet.create({
   selectorLabel: { color: colors.text, fontSize: 15, fontWeight: '900', marginBottom: 2 },
   selectorBox: { borderWidth: 1, borderColor: colors.border, borderRadius: 12, padding: 12, backgroundColor: '#fff' },
   selectorText: { color: colors.muted },
-  listBox: { borderWidth: 1, borderColor: colors.border, borderRadius: 12, marginTop: 8, backgroundColor: '#fff' },
+  listBox: { borderWidth: 1, borderColor: colors.border, borderRadius: 12, marginTop: 8, backgroundColor: '#fff', maxHeight: 400, overflow: 'scroll' },
   listItem: { padding: 12, borderBottomWidth: 1, borderBottomColor: colors.border },
+  eventListItem: { overflow: 'hidden', marginBottom: 1, borderBottomWidth: 1, borderBottomColor: colors.border },
+  eventListImage: { width: '100%', height: 140, backgroundColor: colors.background },
+  eventListContent: { padding: 12 },
+  selectedEventImage: { width: '100%', height: 240, borderRadius: 16, marginBottom: 12 },
   listItemTitle: { fontWeight: '700', color: colors.text },
   listItemMeta: { color: colors.muted, fontSize: 12, marginTop: 4 },
   helperText: { color: colors.muted, fontSize: 12, lineHeight: 18, marginTop: -4, marginBottom: 12 },

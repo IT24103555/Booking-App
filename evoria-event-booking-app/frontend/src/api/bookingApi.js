@@ -21,6 +21,10 @@ export const bookingApi = {
     const res = await apiClient.put(`/bookings/${id}`, payload);
     return res.data;
   },
+  confirm: async (id) => {
+    const res = await apiClient.put(`/bookings/${id}/confirm`);
+    return res.data;
+  },
   cancel: async (id) => {
     const res = await apiClient.put(`/bookings/${id}/cancel`);
     return res.data;

@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Alert, View, Text, StyleSheet, ScrollView, KeyboardAvoidingView, Platform } from 'react-native';
+import { Alert, View, Text, StyleSheet, ScrollView, KeyboardAvoidingView, Platform, TouchableOpacity, Image } from 'react-native';
 import { eventApi } from '../../api/eventApi';
 import { getErrorMessage } from '../../api/apiClient';
 import AppInput from '../../components/AppInput';
@@ -16,8 +16,28 @@ export default function AddEventScreen({ navigation }) {
   const [endTime, setEndTime] = useState('12:00');
   const [venueId, setVenueId] = useState('');
   const [status, setStatus] = useState('Draft');
+  const [imageFile, setImageFile] = useState(null);
+  const [imagePreview, setImagePreview] = useState('');
   const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
+
+  const onPickImage = async () => {
+    if (typeof document !== 'undefined') {
+      const input = document.createElement('input');
+      input.type = 'file';
+      input.accept = 'image/*';
+      input.onchange = (e) => {
+        const file = e.target.files[0];
+        if (file) {
+          setImageFile(file);
+          const reader = new FileReader();
+          reader.onload = (evt) => setImagePreview(evt.target.result);
+          reader.readAsDataURL(file);
+        }
+      };
+      input.click();
+    }
+  };
 
   const onSave = async () => {
     setError('');
@@ -34,7 +54,9 @@ export default function AddEventScreen({ navigation }) {
 
     try {
       setSaving(true);
-      await eventApi.create({ title: title.trim(), description, eventDate, startTime, endTime, venueId: venueId.trim(), status });
+      const payload = { title: title.trim(), description, eventDate, startTime, endTime, venueId: venueId.trim(), status };
+      if (imageFile) payload.imageFile = imageFile;
+      await eventApi.create(payload);
       Alert.alert('Success', 'Event created');
       navigation.goBack();
     } catch (e) {
@@ -59,6 +81,24 @@ export default function AddEventScreen({ navigation }) {
             <ErrorMessage message={error} />
             <AppInput label="Event title" value={title} onChangeText={setTitle} placeholder="Event title" />
             <AppInput label="Description" value={description} onChangeText={setDescription} placeholder="Optional event description" />
+            
+            <View style={styles.imageSection}>
+              <Text style={styles.sectionTitle}>Event image</Text>
+              {imagePreview ? (
+                <View style={styles.imagePreviewContainer}>
+                  <Image source={{ uri: imagePreview }} style={styles.imagePreview} />
+                  <TouchableOpacity onPress={onPickImage} style={styles.changeImageBtn}>
+                    <Text style={styles.changeImageText}>Change image</Text>
+                  </TouchableOpacity>
+                </View>
+              ) : (
+                <TouchableOpacity onPress={onPickImage} style={styles.uploadImageBtn}>
+                  <Text style={styles.uploadImageText}>📸 Upload event image</Text>
+                  <Text style={styles.uploadImageSubtext}>Attracts customers and increases bookings</Text>
+                </TouchableOpacity>
+              )}
+            </View>
+
             <View style={styles.twoColumn}>
               <View style={styles.fieldColumn}><AppInput label="Event Date" value={eventDate} onChangeText={setEventDate} placeholder="YYYY-MM-DD" /></View>
               <View style={styles.fieldColumn}><AppInput label="Status" value={status} onChangeText={setStatus} placeholder="Draft" /></View>
@@ -87,6 +127,14 @@ const styles = StyleSheet.create({
   subtitle: { color: colors.muted, marginTop: 8, lineHeight: 22 },
   formCard: { backgroundColor: colors.card, borderRadius: 28, padding: 20, borderWidth: 1, borderColor: colors.border },
   sectionTitle: { color: colors.text, fontSize: 19, fontWeight: '900', marginBottom: 12 },
+  imageSection: { backgroundColor: colors.background, borderRadius: 20, padding: 16, marginBottom: 16, borderWidth: 1, borderColor: colors.border },
+  uploadImageBtn: { borderWidth: 2, borderStyle: 'dashed', borderColor: colors.primary, borderRadius: 16, padding: 24, alignItems: 'center', justifyContent: 'center' },
+  uploadImageText: { color: colors.primary, fontWeight: '900', fontSize: 16, marginBottom: 6 },
+  uploadImageSubtext: { color: colors.muted, fontSize: 12 },
+  imagePreviewContainer: { alignItems: 'center' },
+  imagePreview: { width: '100%', height: 220, borderRadius: 16, marginBottom: 12 },
+  changeImageBtn: { backgroundColor: colors.primary, borderRadius: 10, paddingHorizontal: 16, paddingVertical: 10 },
+  changeImageText: { color: '#fff', fontWeight: '700', fontSize: 14 },
   twoColumn: { flexDirection: 'row', gap: 12, flexWrap: 'wrap' },
   fieldColumn: { flex: 1, minWidth: 220 },
   helperText: { color: colors.muted, fontSize: 12, lineHeight: 18, marginTop: -4, marginBottom: 12 },

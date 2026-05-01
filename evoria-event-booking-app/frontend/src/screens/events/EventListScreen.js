@@ -1,9 +1,8 @@
 import React, { useContext, useEffect, useState } from 'react';
-import { FlatList, TouchableOpacity, View, Text, StyleSheet, RefreshControl } from 'react-native';
+import { View, Text, StyleSheet, RefreshControl, ScrollView, TouchableOpacity, Image } from 'react-native';
 import { eventApi } from '../../api/eventApi';
 import { getErrorMessage } from '../../api/apiClient';
 import AppButton from '../../components/AppButton';
-import AppCard from '../../components/AppCard';
 import LoadingSpinner from '../../components/LoadingSpinner';
 import ErrorMessage from '../../components/ErrorMessage';
 import EmptyState from '../../components/EmptyState';
@@ -12,32 +11,45 @@ import { formatDate } from '../../utils/formatDate';
 import { AuthContext } from '../../context/AuthContext';
 
 function StatusPill({ status }) {
+  const statusColors = {
+    'Draft': '#f59e0b',
+    'Published': '#10b981',
+    'Cancelled': '#ef4444',
+    'Completed': '#6b7280',
+  };
   return (
-    <View style={styles.pill}>
+    <View style={[styles.pill, { backgroundColor: statusColors[status] || colors.muted }]}>
       <Text style={styles.pillText}>{status || 'Unknown'}</Text>
     </View>
   );
 }
 
-function EventCard({ item, onPress }) {
+function EventGridCard({ item, onPress, isStaff }) {
   return (
-    <TouchableOpacity activeOpacity={0.84} onPress={onPress}>
-      <AppCard>
-        <View style={styles.cardTopRow}>
-          <View style={styles.dateBlock}>
-            <Text style={styles.dateMonth}>{String(formatDate(item.eventDate)).slice(0, 3)}</Text>
-            <Text style={styles.dateDay}>{String(new Date(item.eventDate).getDate()).padStart(2, '0')}</Text>
-          </View>
-          <View style={styles.cardContent}>
-            <View style={styles.titleRow}>
-              <Text style={styles.title}>{item.title}</Text>
-              <StatusPill status={item.status} />
-            </View>
-            <Text style={styles.subtitle}>{formatDate(item.eventDate)} · {item.startTime || '--:--'} - {item.endTime || '--:--'}</Text>
-            <Text style={styles.meta}>Venue: {item.venue?.name || item.venue || 'Not assigned'}</Text>
-          </View>
+    <TouchableOpacity activeOpacity={0.85} onPress={onPress} style={styles.gridCard}>
+      {item.image ? (
+        <Image 
+          source={{ uri: `http://localhost:5000${item.image}` }} 
+          style={styles.gridImage}
+          resizeMode="cover"
+        />
+      ) : (
+        <View style={[styles.gridImage, { backgroundColor: colors.primary }]} />
+      )}
+      <View style={styles.cardContent}>
+        <View style={styles.statusContainer}>
+          <StatusPill status={item.status} />
         </View>
-      </AppCard>
+        <Text style={styles.cardTitle} numberOfLines={2}>{item.title}</Text>
+        <Text style={styles.cardVenue} numberOfLines={1}>📍 {item.venueId?.name || 'Venue TBA'}</Text>
+        <Text style={styles.cardDate}>📅 {item.eventDate ? String(item.eventDate).slice(0,10) : 'TBA'}</Text>
+        <Text style={styles.cardTime}>{item.startTime || '--:--'} - {item.endTime || '--:--'}</Text>
+        {isStaff && (
+          <TouchableOpacity style={styles.editBtn}>
+            <Text style={styles.editBtnText}>Edit</Text>
+          </TouchableOpacity>
+        )}
+      </View>
     </TouchableOpacity>
   );
 }
@@ -72,53 +84,167 @@ export default function EventListScreen({ navigation }) {
   if (loading) return <LoadingSpinner />;
 
   return (
-    <View style={styles.container}>
-      <View style={styles.header}>
-        <View style={styles.headerText}>
-          <Text style={styles.kicker}>Discover</Text>
-          <Text style={styles.pageTitle}>Events</Text>
-          <Text style={styles.pageSubtitle}>Browse upcoming sessions, workshops, and university events.</Text>
+    <ScrollView
+      contentContainerStyle={styles.page}
+      showsVerticalScrollIndicator={false}
+      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => load(true)} />}
+    >
+      <View style={styles.shell}>
+        {/* Header */}
+        <View style={styles.header}>
+          <View style={styles.headerText}>
+            <Text style={styles.kicker}>Explore</Text>
+            <Text style={styles.pageTitle}>Events</Text>
+            <Text style={styles.pageSubtitle}>Browse and manage upcoming events</Text>
+          </View>
+          {isStaff && <View style={styles.headerAction}><AppButton title="New Event" onPress={() => navigation.navigate('AddEvent')} /></View>}
         </View>
-        {isStaff ? <View style={styles.headerAction}><AppButton title="Add Event" onPress={() => navigation.navigate('AddEvent')} /></View> : null}
+
+        <ErrorMessage message={error} />
+
+        {items.length === 0 ? (
+          <EmptyState title="No events yet" actionTitle="Reload" onAction={() => load()} />
+        ) : (
+          <View style={styles.gridContainer}>
+            {items.map((item) => (
+              <EventGridCard
+                key={item._id}
+                item={item}
+                isStaff={isStaff}
+                onPress={() => navigation.navigate('EventDetails', { id: item._id })}
+              />
+            ))}
+          </View>
+        )}
       </View>
-
-      <ErrorMessage message={error} />
-
-      {items.length === 0 ? (
-        <EmptyState title="No events yet" actionTitle="Reload" onAction={() => load()} />
-      ) : (
-        <FlatList
-          contentContainerStyle={styles.listContent}
-          data={items}
-          keyExtractor={(item) => item._id}
-          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => load(true)} />}
-          renderItem={({ item }) => <EventCard item={item} onPress={() => navigation.navigate('EventDetails', { id: item._id })} />}
-          ListFooterComponent={<View style={styles.footerSpace} />}
-        />
-      )}
-    </View>
+    </ScrollView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, padding: 20, backgroundColor: colors.background },
-  header: { maxWidth: 980, width: '100%', alignSelf: 'center', marginBottom: 16, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12 },
-  headerText: { flex: 1 },
-  headerAction: { minWidth: 130 },
-  kicker: { color: colors.accent, fontSize: 12, fontWeight: '900', textTransform: 'uppercase', letterSpacing: 1.2, marginBottom: 6 },
-  pageTitle: { fontSize: 34, fontWeight: '900', color: colors.text, letterSpacing: -0.5 },
-  pageSubtitle: { marginTop: 8, color: colors.muted, maxWidth: 720, fontSize: 15, lineHeight: 22 },
-  listContent: { maxWidth: 980, width: '100%', alignSelf: 'center', paddingBottom: 20, gap: 12 },
-  cardTopRow: { flexDirection: 'row', gap: 14, alignItems: 'flex-start' },
-  dateBlock: { width: 58, borderRadius: 18, backgroundColor: colors.primary, paddingVertical: 10, alignItems: 'center' },
-  dateMonth: { color: '#fff', opacity: 0.85, fontSize: 11, fontWeight: '900', textTransform: 'uppercase' },
-  dateDay: { color: '#fff', fontSize: 22, fontWeight: '900', marginTop: 2 },
-  cardContent: { flex: 1 },
-  titleRow: { flexDirection: 'row', justifyContent: 'space-between', gap: 10, alignItems: 'flex-start' },
-  title: { flex: 1, fontWeight: '900', color: colors.text, fontSize: 16, lineHeight: 21 },
-  subtitle: { marginTop: 7, color: colors.muted, fontWeight: '700' },
-  meta: { marginTop: 7, color: colors.muted, fontSize: 13, lineHeight: 19 },
-  pill: { backgroundColor: colors.background, borderRadius: 999, borderWidth: 1, borderColor: colors.border, paddingHorizontal: 10, paddingVertical: 5 },
-  pillText: { color: colors.primary, fontWeight: '900', fontSize: 11 },
-  footerSpace: { height: 10 },
+  page: {
+    flexGrow: 1,
+    padding: 16,
+    backgroundColor: colors.background,
+  },
+  shell: {
+    maxWidth: 1200,
+    width: '100%',
+    alignSelf: 'center',
+  },
+  
+  // Header
+  header: {
+    marginBottom: 24,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    gap: 12,
+  },
+  headerText: {
+    flex: 1,
+  },
+  headerAction: {
+    minWidth: 130,
+  },
+  kicker: {
+    color: colors.accent,
+    fontSize: 12,
+    fontWeight: '900',
+    textTransform: 'uppercase',
+    letterSpacing: 1.2,
+    marginBottom: 6,
+  },
+  pageTitle: {
+    fontSize: 32,
+    fontWeight: '900',
+    color: colors.text,
+    letterSpacing: -0.6,
+    marginBottom: 6,
+  },
+  pageSubtitle: {
+    color: colors.muted,
+    fontSize: 16,
+    lineHeight: 24,
+    maxWidth: 720,
+  },
+
+  // Grid Layout
+  gridContainer: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 12,
+    marginBottom: 16,
+  },
+  gridCard: {
+    flexBasis: 'calc(33.333% - 8px)',
+    backgroundColor: colors.card,
+    borderRadius: 16,
+    overflow: 'hidden',
+    shadowColor: colors.shadow,
+    shadowOpacity: 0.08,
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 2,
+  },
+  gridImage: {
+    width: '100%',
+    height: 180,
+    backgroundColor: colors.primary,
+  },
+  cardContent: {
+    padding: 12,
+  },
+  statusContainer: {
+    marginBottom: 8,
+  },
+  pill: {
+    alignSelf: 'flex-start',
+    borderRadius: 6,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+  },
+  pillText: {
+    color: '#fff',
+    fontWeight: '700',
+    fontSize: 11,
+    textTransform: 'capitalize',
+  },
+  cardTitle: {
+    fontSize: 14,
+    fontWeight: '800',
+    color: colors.text,
+    marginBottom: 8,
+    lineHeight: 19,
+  },
+  cardVenue: {
+    fontSize: 12,
+    color: colors.muted,
+    fontWeight: '500',
+    marginBottom: 4,
+  },
+  cardDate: {
+    fontSize: 12,
+    color: colors.primary,
+    fontWeight: '700',
+    marginBottom: 2,
+  },
+  cardTime: {
+    fontSize: 11,
+    color: colors.muted,
+    fontWeight: '600',
+    marginBottom: 8,
+  },
+  editBtn: {
+    backgroundColor: colors.primary,
+    borderRadius: 8,
+    paddingVertical: 6,
+    alignItems: 'center',
+    marginTop: 4,
+  },
+  editBtnText: {
+    color: '#fff',
+    fontWeight: '700',
+    fontSize: 12,
+  },
 });

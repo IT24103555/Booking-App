@@ -1,43 +1,209 @@
-import React from 'react';
-import { View, Text, StyleSheet, ScrollView } from 'react-native';
+import React, { useEffect, useState } from 'react';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Image, TextInput } from 'react-native';
 import { colors } from '../../constants/colors';
+import { eventApi } from '../../api/eventApi';
 
-function FeatureCard({ value, label, description }) {
+const CATEGORIES = [
+  { id: 'all', label: 'All Events', icon: '🎯' },
+  { id: 'concerts', label: 'Concerts', icon: '🎵' },
+  { id: 'conferences', label: 'Conferences', icon: '🎤' },
+  { id: 'exhibitions', label: 'Exhibitions', icon: '🎨' },
+  { id: 'workshops', label: 'Workshops', icon: '🛠️' },
+  { id: 'sports', label: 'Sports', icon: '⚽' },
+];
+
+function FeaturedEventCard({ event, onPress }) {
   return (
-    <View style={styles.featureCard}>
-      <Text style={styles.featureValue}>{value}</Text>
-      <Text style={styles.featureLabel}>{label}</Text>
-      <Text style={styles.featureDescription}>{description}</Text>
-    </View>
+    <TouchableOpacity activeOpacity={0.85} onPress={onPress} style={styles.featuredCard}>
+      {event.image ? (
+        <Image 
+          source={{ uri: `http://localhost:5000${event.image}` }} 
+          style={styles.featuredImage}
+          resizeMode="cover"
+        />
+      ) : (
+        <View style={[styles.featuredImage, { backgroundColor: colors.primary }]} />
+      )}
+      <View style={styles.featuredOverlay}>
+        <View style={styles.featuredContent}>
+          <Text style={styles.featuredTitle}>{event.title}</Text>
+          <View style={styles.featuredMeta}>
+            <Text style={styles.featuredMetaText}>📍 {event.venueId?.name || 'Venue TBA'}</Text>
+            <Text style={styles.featuredMetaText}>📅 {event.eventDate ? String(event.eventDate).slice(0,10) : 'TBA'}</Text>
+          </View>
+        </View>
+      </View>
+    </TouchableOpacity>
   );
 }
 
-export default function HomeScreen() {
+function EventGridCard({ event, onPress }) {
+  return (
+    <TouchableOpacity activeOpacity={0.85} onPress={onPress} style={styles.gridCard}>
+      {event.image ? (
+        <Image 
+          source={{ uri: `http://localhost:5000${event.image}` }} 
+          style={styles.gridImage}
+          resizeMode="cover"
+        />
+      ) : (
+        <View style={[styles.gridImage, { backgroundColor: colors.primary }]} />
+      )}
+      <View style={styles.gridContent}>
+        <Text style={styles.gridTitle} numberOfLines={2}>{event.title}</Text>
+        <Text style={styles.gridVenue} numberOfLines={1}>{event.venueId?.name || 'Venue TBA'}</Text>
+        <Text style={styles.gridDate}>{event.eventDate ? String(event.eventDate).slice(0,10) : 'TBA'}</Text>
+      </View>
+    </TouchableOpacity>
+  );
+}
+
+export default function HomeScreen({ navigation }) {
+  const [events, setEvents] = useState([]);
+  const [filteredEvents, setFilteredEvents] = useState([]);
+  const [selectedCategory, setSelectedCategory] = useState('all');
+  const [searchText, setSearchText] = useState('');
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    loadEvents();
+  }, []);
+
+  useEffect(() => {
+    filterEvents();
+  }, [events, selectedCategory, searchText]);
+
+  const loadEvents = async () => {
+    try {
+      setLoading(true);
+      const res = await eventApi.getAll();
+      setEvents(res.data || []);
+    } catch (e) {
+      console.log(e);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const filterEvents = () => {
+    let result = events;
+
+    if (searchText.trim()) {
+      result = result.filter(e => 
+        e.title.toLowerCase().includes(searchText.toLowerCase()) ||
+        e.description?.toLowerCase().includes(searchText.toLowerCase())
+      );
+    }
+
+    if (selectedCategory !== 'all') {
+      // Filter by category based on event title or description
+      result = result.filter(e =>
+        e.title.toLowerCase().includes(selectedCategory) ||
+        e.description?.toLowerCase().includes(selectedCategory)
+      );
+    }
+
+    setFilteredEvents(result);
+  };
+
+  const featuredEvents = filteredEvents.slice(0, 2);
+  const otherEvents = filteredEvents.slice(2);
+
+  const navigateToBooking = (eventId) => {
+    navigation.navigate('Bookings', {
+      screen: 'CreateBooking',
+      params: { eventId }
+    });
+  };
+
   return (
     <ScrollView contentContainerStyle={styles.page} showsVerticalScrollIndicator={false}>
       <View style={styles.shell}>
-        <View style={styles.hero}>
-          <View style={styles.badge}>
-            <Text style={styles.badgeText}>Event booking platform</Text>
+        {/* Header */}
+        <View style={styles.header}>
+          <Text style={styles.headerTitle}>Discover Events</Text>
+          <Text style={styles.headerSubtitle}>Find and book your favorite events</Text>
+        </View>
+
+        {/* Search Bar */}
+        <View style={styles.searchContainer}>
+          <Text style={styles.searchIcon}>🔍</Text>
+          <TextInput
+            style={styles.searchInput}
+            placeholder="Search events..."
+            placeholderTextColor={colors.muted}
+            value={searchText}
+            onChangeText={setSearchText}
+          />
+        </View>
+
+        {/* Categories */}
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.categoriesContainer}
+          style={styles.categoriesScroll}
+        >
+          {CATEGORIES.map((cat) => (
+            <TouchableOpacity
+              key={cat.id}
+              onPress={() => setSelectedCategory(cat.id)}
+              style={[
+                styles.categoryChip,
+                selectedCategory === cat.id && styles.categoryChipActive
+              ]}
+            >
+              <Text style={styles.categoryIcon}>{cat.icon}</Text>
+              <Text style={[
+                styles.categoryLabel,
+                selectedCategory === cat.id && styles.categoryLabelActive
+              ]}>
+                {cat.label}
+              </Text>
+            </TouchableOpacity>
+          ))}
+        </ScrollView>
+
+        {/* Featured Events */}
+        {featuredEvents.length > 0 && (
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Featured Events</Text>
+            {featuredEvents.map((event) => (
+              <FeaturedEventCard
+                key={event._id}
+                event={event}
+                onPress={() => navigateToBooking(event._id)}
+              />
+            ))}
           </View>
-          <Text style={styles.title}>Welcome to Evoria</Text>
-          <Text style={styles.subtitle}>
-            Discover campus events, manage bookings, follow agendas, and keep your event experience simple from start to finish.
-          </Text>
-        </View>
+        )}
 
-        <View style={styles.grid}>
-          <FeatureCard value="Fast" label="Find events instantly" description="Browse upcoming events and open details in a few taps." />
-          <FeatureCard value="Easy" label="Book without friction" description="Reserve tickets, review status, and manage bookings quickly." />
-          <FeatureCard value="Organized" label="Everything in one place" description="Events, ticket types, sessions, and profile details stay connected." />
-        </View>
+        {/* All Events Grid */}
+        {otherEvents.length > 0 && (
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>More Events</Text>
+            <View style={styles.gridContainer}>
+              {otherEvents.map((event) => (
+                <EventGridCard
+                  key={event._id}
+                  event={event}
+                  onPress={() => navigateToBooking(event._id)}
+                />
+              ))}
+            </View>
+          </View>
+        )}
 
-        <View style={styles.infoPanel}>
-          <Text style={styles.infoTitle}>Built for students and organizers</Text>
-          <Text style={styles.infoText}>
-            A clean mobile-first experience with reusable components, clear states, and simple navigation between important modules.
-          </Text>
-        </View>
+        {/* Empty State */}
+        {filteredEvents.length === 0 && !loading && (
+          <View style={styles.emptyState}>
+            <Text style={styles.emptyStateIcon}>🎯</Text>
+            <Text style={styles.emptyStateTitle}>No events found</Text>
+            <Text style={styles.emptyStateText}>
+              Try adjusting your search or selecting a different category
+            </Text>
+          </View>
+        )}
       </View>
     </ScrollView>
   );
@@ -46,58 +212,221 @@ export default function HomeScreen() {
 const styles = StyleSheet.create({
   page: {
     flexGrow: 1,
-    padding: 20,
+    padding: 16,
     backgroundColor: colors.background,
-    justifyContent: 'center',
   },
-  shell: { maxWidth: 980, width: '100%', alignSelf: 'center' },
-  hero: {
-    backgroundColor: colors.primary,
-    borderRadius: 34,
-    padding: 28,
-    marginBottom: 18,
-    shadowColor: colors.shadow,
-    shadowOpacity: 0.18,
-    shadowRadius: 28,
-    shadowOffset: { width: 0, height: 16 },
-    elevation: 5,
+  shell: {
+    maxWidth: 1200,
+    width: '100%',
+    alignSelf: 'center',
   },
-  badge: {
-    alignSelf: 'flex-start',
-    backgroundColor: 'rgba(255,255,255,0.16)',
-    borderRadius: 999,
-    paddingHorizontal: 12,
-    paddingVertical: 7,
-    marginBottom: 14,
+  
+  // Header
+  header: {
+    marginBottom: 24,
   },
-  badgeText: { color: '#fff', fontWeight: '900', fontSize: 12, textTransform: 'uppercase', letterSpacing: 1.1 },
-  title: { fontSize: 40, fontWeight: '900', color: '#fff', letterSpacing: -0.8, lineHeight: 46 },
-  subtitle: { marginTop: 12, color: '#fff', opacity: 0.86, fontSize: 16, lineHeight: 25, maxWidth: 740 },
-  grid: { flexDirection: 'row', flexWrap: 'wrap', gap: 14, marginBottom: 16 },
-  featureCard: {
-    flexGrow: 1,
-    flexBasis: 250,
+  headerTitle: {
+    fontSize: 32,
+    fontWeight: '900',
+    color: colors.text,
+    marginBottom: 6,
+    letterSpacing: -0.6,
+  },
+  headerSubtitle: {
+    fontSize: 16,
+    color: colors.muted,
+    lineHeight: 24,
+  },
+
+  // Search
+  searchContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
     backgroundColor: colors.card,
-    borderRadius: 26,
-    padding: 20,
-    borderWidth: 1,
+    borderRadius: 16,
+    borderWidth: 1.5,
     borderColor: colors.border,
+    paddingHorizontal: 14,
+    marginBottom: 20,
+    height: 48,
     shadowColor: colors.shadow,
-    shadowOpacity: 0.1,
-    shadowRadius: 18,
-    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.08,
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 4 },
     elevation: 2,
   },
-  featureValue: { fontSize: 24, fontWeight: '900', color: colors.primary, marginBottom: 6 },
-  featureLabel: { fontSize: 15, fontWeight: '800', color: colors.text, marginBottom: 7 },
-  featureDescription: { color: colors.muted, fontSize: 14, lineHeight: 20 },
-  infoPanel: {
-    backgroundColor: colors.card,
-    borderRadius: 24,
-    padding: 20,
-    borderWidth: 1,
-    borderColor: colors.border,
+  searchIcon: {
+    fontSize: 18,
+    marginRight: 10,
   },
-  infoTitle: { fontSize: 18, fontWeight: '900', color: colors.text, marginBottom: 8 },
-  infoText: { color: colors.muted, lineHeight: 22 },
+  searchInput: {
+    flex: 1,
+    fontSize: 16,
+    color: colors.text,
+    fontWeight: '500',
+  },
+
+  // Categories
+  categoriesScroll: {
+    marginBottom: 24,
+  },
+  categoriesContainer: {
+    gap: 10,
+    paddingRight: 16,
+  },
+  categoryChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 20,
+    backgroundColor: colors.card,
+    borderWidth: 1.5,
+    borderColor: colors.border,
+    shadowColor: colors.shadow,
+    shadowOpacity: 0.06,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 2 },
+    elevation: 1,
+  },
+  categoryChipActive: {
+    backgroundColor: colors.primary,
+    borderColor: colors.primary,
+  },
+  categoryIcon: {
+    fontSize: 16,
+  },
+  categoryLabel: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: colors.text,
+  },
+  categoryLabelActive: {
+    color: '#fff',
+  },
+
+  // Featured Cards
+  section: {
+    marginBottom: 28,
+  },
+  sectionTitle: {
+    fontSize: 20,
+    fontWeight: '900',
+    color: colors.text,
+    marginBottom: 14,
+    letterSpacing: -0.4,
+  },
+  featuredCard: {
+    borderRadius: 20,
+    overflow: 'hidden',
+    marginBottom: 12,
+    shadowColor: colors.shadow,
+    shadowOpacity: 0.12,
+    shadowRadius: 16,
+    shadowOffset: { width: 0, height: 6 },
+    elevation: 3,
+  },
+  featuredImage: {
+    width: '100%',
+    height: 280,
+    backgroundColor: colors.primary,
+  },
+  featuredOverlay: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    height: '70%',
+    backgroundColor: 'linear-gradient(to top, rgba(0,0,0,0.8), rgba(0,0,0,0))',
+    justifyContent: 'flex-end',
+    padding: 16,
+  },
+  featuredContent: {
+    gap: 8,
+  },
+  featuredTitle: {
+    fontSize: 22,
+    fontWeight: '900',
+    color: '#fff',
+    letterSpacing: -0.4,
+  },
+  featuredMeta: {
+    gap: 6,
+  },
+  featuredMetaText: {
+    fontSize: 13,
+    color: '#fff',
+    opacity: 0.9,
+    fontWeight: '500',
+  },
+
+  // Grid Cards
+  gridContainer: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 12,
+    marginBottom: 16,
+  },
+  gridCard: {
+    flexBasis: 'calc(50% - 6px)',
+    backgroundColor: colors.card,
+    borderRadius: 16,
+    overflow: 'hidden',
+    shadowColor: colors.shadow,
+    shadowOpacity: 0.08,
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 2,
+  },
+  gridImage: {
+    width: '100%',
+    height: 160,
+    backgroundColor: colors.primary,
+  },
+  gridContent: {
+    padding: 12,
+  },
+  gridTitle: {
+    fontSize: 14,
+    fontWeight: '800',
+    color: colors.text,
+    marginBottom: 6,
+    lineHeight: 20,
+  },
+  gridVenue: {
+    fontSize: 12,
+    color: colors.muted,
+    fontWeight: '500',
+    marginBottom: 4,
+  },
+  gridDate: {
+    fontSize: 11,
+    color: colors.primary,
+    fontWeight: '700',
+  },
+
+  // Empty State
+  emptyState: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 60,
+    gap: 12,
+  },
+  emptyStateIcon: {
+    fontSize: 48,
+    marginBottom: 8,
+  },
+  emptyStateTitle: {
+    fontSize: 18,
+    fontWeight: '900',
+    color: colors.text,
+  },
+  emptyStateText: {
+    fontSize: 14,
+    color: colors.muted,
+    textAlign: 'center',
+    maxWidth: 280,
+    lineHeight: 20,
+  },
 });

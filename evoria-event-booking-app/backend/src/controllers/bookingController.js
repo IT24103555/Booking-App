@@ -246,6 +246,41 @@ const cancelBooking = async (req, res, next) => {
   }
 };
 
+// PUT /api/bookings/:id/confirm (admin/organizer)
+const confirmBooking = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    if (!validateObjectId(id)) {
+      return res.status(400).json({ success: false, message: 'Invalid booking id' });
+    }
+
+    const booking = await Booking.findById(id);
+    if (!booking) {
+      return res.status(404).json({ success: false, message: 'Booking not found' });
+    }
+
+    if (booking.status === 'Confirmed') {
+      return res.status(400).json({ success: false, message: 'Booking is already confirmed' });
+    }
+
+    if (booking.status === 'Cancelled') {
+      return res.status(400).json({ success: false, message: 'Cannot confirm a cancelled booking' });
+    }
+
+    booking.status = 'Confirmed';
+    await booking.save();
+
+    const populated = await Booking.findById(booking._id)
+      .populate('userId', 'name email role')
+      .populate('eventId')
+      .populate('ticketTypeId');
+
+    return res.status(200).json({ success: true, message: 'Booking confirmed', data: populated });
+  } catch (err) {
+    next(err);
+  }
+};
+
 // DELETE /api/bookings/:id (admin/organizer)
 const deleteBooking = async (req, res, next) => {
   try {
@@ -277,6 +312,7 @@ module.exports = {
   getMyBookings,
   getSingleBooking,
   updateBooking,
+  confirmBooking,
   cancelBooking,
   deleteBooking,
 };
