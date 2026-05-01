@@ -1,0 +1,19 @@
+# Frontend (Expo / React Native)
+node_modules/
+
+# Environment
+.env
+.env.*
+!.env.example
+
+# Expo / Metro caches
+.expo/
+.expo-shared/
+web-build/
+
+# Native builds
+android/
+ios/
+
+# Logs
+*.log

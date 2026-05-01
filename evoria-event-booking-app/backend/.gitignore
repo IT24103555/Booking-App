@@ -1,0 +1,17 @@
+# Backend (Node/Express)
+node_modules/
+
+# Environment
+.env
+.env.*
+!.env.example
+
+# Logs
+logs/
+*.log
+
+# Runtime uploads (if you store locally)
+uploads/
+
+# Build output (if added later)
+dist/

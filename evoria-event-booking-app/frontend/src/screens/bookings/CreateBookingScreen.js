@@ -1,0 +1,196 @@
+import React, { useEffect, useState } from 'react';
+import { Alert, View, Text, StyleSheet, ScrollView, KeyboardAvoidingView, Platform, TouchableOpacity } from 'react-native';
+import { eventApi } from '../../api/eventApi';
+import { sessionAgendaApi } from '../../api/sessionAgendaApi';
+import { bookingApi } from '../../api/bookingApi';
+import { getErrorMessage } from '../../api/apiClient';
+import AppInput from '../../components/AppInput';
+import AppButton from '../../components/AppButton';
+import ErrorMessage from '../../components/ErrorMessage';
+import { colors } from '../../constants/colors';
+import { isPositiveInt, isRequired } from '../../utils/validators';
+
+export default function CreateBookingScreen({ route, navigation }) {
+  const preEventId = route?.params?.eventId || '';
+  const [eventId, setEventId] = useState(preEventId);
+  const [ticketTypeId, setTicketTypeId] = useState('');
+  const [quantity, setQuantity] = useState('1');
+  const [error, setError] = useState('');
+  const [saving, setSaving] = useState(false);
+  const [events, setEvents] = useState([]);
+  const [ticketTypes, setTicketTypes] = useState([]);
+  const [selectedEvent, setSelectedEvent] = useState(null);
+  const [sessions, setSessions] = useState([]);
+  const [maxQuantity, setMaxQuantity] = useState(null);
+  const [showEvents, setShowEvents] = useState(false);
+  const [showTickets, setShowTickets] = useState(false);
+
+  useEffect(() => {
+    const load = async () => {
+      try {
+        const res = await eventApi.getAll();
+        setEvents(res.data || []);
+        // if preEventId provided, prefill ticket types (we'll fetch fresh detail later)
+        if (preEventId) {
+          const ev = (res.data || []).find((e) => e._id === preEventId);
+          if (ev) {
+            setTicketTypes(ev.ticketTypeIds || []);
+            setSelectedEvent(ev);
+          }
+        }
+      } catch (e) {
+        // ignore - keep empty list
+      }
+    };
+    load();
+  }, [preEventId]);
+
+  const onSave = async () => {
+    setError('');
+    if (!isRequired(eventId)) return setError('Event is required.');
+    if (!isRequired(ticketTypeId)) return setError('Ticket type is required.');
+    if (!isPositiveInt(quantity)) return setError('Quantity must be greater than 0.');
+    if (maxQuantity != null && Number(quantity) > maxQuantity) return setError(`Only ${maxQuantity} tickets available for selected ticket type.`);
+
+    try {
+      setSaving(true);
+      await bookingApi.create({ eventId: eventId.trim(), ticketTypeId: ticketTypeId.trim(), quantity: Number(quantity) });
+      Alert.alert('Success', 'Booking created');
+      navigation.goBack();
+    } catch (e) {
+      setError(getErrorMessage(e));
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={styles.keyboardView}>
+      <ScrollView contentContainerStyle={styles.page} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+        <View style={styles.shell}>
+          <View style={styles.hero}>
+            <Text style={styles.kicker}>Reserve tickets</Text>
+            <Text style={styles.title}>Create a new booking</Text>
+            <Text style={styles.subtitle}>Choose the event reference, ticket type, and quantity to confirm a reservation.</Text>
+          </View>
+
+          <View style={styles.formCard}>
+            <Text style={styles.sectionTitle}>Booking information</Text>
+            <ErrorMessage message={error} />
+            <View style={styles.selectorCard}>
+              <Text style={styles.selectorLabel}>Event</Text>
+              <TouchableOpacity activeOpacity={0.85} onPress={() => setShowEvents((s) => !s)} style={styles.selectorBox}>
+                <Text style={styles.selectorText}>{events.find((e) => e._id === eventId)?.title || 'Select event / MongoDB ObjectId'}</Text>
+              </TouchableOpacity>
+              {showEvents && (
+                <View style={styles.listBox}>
+                  {events.map((e) => (
+                    <TouchableOpacity key={e._id} style={styles.listItem} onPress={async () => {
+                      try {
+                        setShowEvents(false);
+                        setShowTickets(false);
+                        setTicketTypeId('');
+                        setEventId(e._id);
+                        // fetch full event detail (populated ticket types & venue)
+                        const detail = await eventApi.getById(e._id);
+                        const ev = detail.data || e;
+                        setSelectedEvent(ev);
+                        setTicketTypes(ev.ticketTypeIds || []);
+                        // fetch sessions for event
+                        try {
+                          const sess = await sessionAgendaApi.getByEvent(e._id);
+                          setSessions(sess.data || []);
+                        } catch (se) {
+                          setSessions([]);
+                        }
+                        setMaxQuantity(null);
+                      } catch (err) {
+                        // fallback
+                        setTicketTypes(e.ticketTypeIds || []);
+                        setSelectedEvent(e);
+                        setSessions([]);
+                      }
+                    }}>
+                      <Text style={styles.listItemTitle}>{e.title}</Text>
+                      <Text style={styles.listItemMeta}>{e.venueId?.name || ''} — {e.eventDate ? String(e.eventDate).slice(0,10) : ''}</Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              )}
+            </View>
+            {selectedEvent && (
+              <View style={[styles.selectorCard, { marginTop: 6 }]}>
+                <Text style={styles.selectorLabel}>Venue</Text>
+                <Text style={{ color: colors.text, fontWeight: '700' }}>{selectedEvent.venueId?.name || '—'}</Text>
+                <Text style={{ color: colors.muted, marginTop: 6 }}>{selectedEvent.venueId?.location || selectedEvent.venueId?.description || ''}</Text>
+                {sessions.length > 0 && (
+                  <View style={{ marginTop: 12 }}>
+                    <Text style={styles.selectorLabel}>Sessions</Text>
+                    {sessions.map((s) => (
+                      <View key={s._id} style={{ marginTop: 6 }}>
+                        <Text style={{ color: colors.text, fontWeight: '700' }}>{s.title}</Text>
+                        <Text style={{ color: colors.muted }}>{s.startTime ? `${s.startTime} — ${s.endTime || ''}` : s.description}</Text>
+                      </View>
+                    ))}
+                  </View>
+                )}
+              </View>
+            )}
+            <View style={styles.selectorCard}>
+              <Text style={styles.selectorLabel}>Ticket type</Text>
+              <TouchableOpacity activeOpacity={0.85} onPress={() => setShowTickets((s) => !s)} style={styles.selectorBox}>
+                <Text style={styles.selectorText}>{ticketTypes.find((t) => t._id === ticketTypeId)?.name || 'Select ticket type / MongoDB ObjectId'}</Text>
+              </TouchableOpacity>
+              {showTickets && (
+                <View style={styles.listBox}>
+                  {ticketTypes.map((t) => (
+                    <TouchableOpacity key={t._id} style={styles.listItem} onPress={() => { setTicketTypeId(t._id); setShowTickets(false); setMaxQuantity(typeof t.availableQuantity === 'number' ? t.availableQuantity : null); setQuantity('1'); }}>
+                      <Text style={styles.listItemTitle}>{t.name}</Text>
+                      <Text style={styles.listItemMeta}>{t.price ? `Price ${t.price}` : ''} {t.availableQuantity != null ? ` — ${t.availableQuantity} available` : ''}</Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              )}
+            </View>
+            {maxQuantity != null && (
+              <View style={{ marginBottom: 12 }}>
+                <Text style={{ color: colors.muted, fontSize: 13 }}>Available: {maxQuantity}</Text>
+              </View>
+            )}
+            <AppInput label="Quantity" value={quantity} onChangeText={(val) => {
+              const digits = String(val).replace(/[^0-9]/g, '');
+              if (digits === '') return setQuantity('');
+              let n = parseInt(digits, 10) || 0;
+              if (maxQuantity != null && n > maxQuantity) n = maxQuantity;
+              if (n < 1) n = 1;
+              setQuantity(String(n));
+            }} placeholder="1" keyboardType="numeric" />
+            <Text style={styles.helperText}>Senior UX note: these ID fields are styled as selectors. Replace them with real event/ticket pickers when the lookup endpoints are wired.</Text>
+            <AppButton title={saving ? 'Creating booking...' : 'Create booking'} onPress={onSave} disabled={saving} />
+          </View>
+        </View>
+      </ScrollView>
+    </KeyboardAvoidingView>
+  );
+}
+
+const styles = StyleSheet.create({
+  keyboardView: { flex: 1, backgroundColor: colors.background },
+  page: { flexGrow: 1, padding: 20, backgroundColor: colors.background },
+  shell: { width: '100%', maxWidth: 720, alignSelf: 'center' },
+  hero: { backgroundColor: colors.primary, borderRadius: 30, padding: 24, marginBottom: 14, shadowColor: colors.shadow, shadowOpacity: 0.16, shadowRadius: 24, shadowOffset: { width: 0, height: 14 }, elevation: 4 },
+  kicker: { color: '#fff', opacity: 0.82, fontSize: 12, fontWeight: '900', textTransform: 'uppercase', letterSpacing: 1.2 },
+  title: { color: '#fff', fontSize: 31, fontWeight: '900', marginTop: 7, letterSpacing: -0.5 },
+  subtitle: { color: '#fff', opacity: 0.86, marginTop: 10, lineHeight: 22 },
+  formCard: { backgroundColor: colors.card, borderRadius: 28, padding: 20, borderWidth: 1, borderColor: colors.border },
+  sectionTitle: { color: colors.text, fontSize: 19, fontWeight: '900', marginBottom: 12 },
+  selectorCard: { backgroundColor: colors.background, borderRadius: 22, padding: 14, borderWidth: 1, borderColor: colors.border, marginBottom: 12 },
+  selectorLabel: { color: colors.text, fontSize: 15, fontWeight: '900', marginBottom: 2 },
+  selectorBox: { borderWidth: 1, borderColor: colors.border, borderRadius: 12, padding: 12, backgroundColor: '#fff' },
+  selectorText: { color: colors.muted },
+  listBox: { borderWidth: 1, borderColor: colors.border, borderRadius: 12, marginTop: 8, backgroundColor: '#fff' },
+  listItem: { padding: 12, borderBottomWidth: 1, borderBottomColor: colors.border },
+  listItemTitle: { fontWeight: '700', color: colors.text },
+  listItemMeta: { color: colors.muted, fontSize: 12, marginTop: 4 },
+  helperText: { color: colors.muted, fontSize: 12, lineHeight: 18, marginTop: -4, marginBottom: 12 },
+});
