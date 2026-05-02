@@ -1,18 +1,19 @@
 import React, { useEffect, useState } from 'react';
 import { Alert, View, Text, StyleSheet, ScrollView, KeyboardAvoidingView, Platform, TouchableOpacity, Image } from 'react-native';
 import { eventApi } from '../../api/eventApi';
+import { bookingApi } from '../../api/bookingApi';
+import { ticketTypeApi } from '../../api/ticketTypeApi';
 import { sessionAgendaApi } from '../../api/sessionAgendaApi';
 import { API_BASE_URL } from '../../config/apiConfig';
 
 const UPLOADS_BASE = API_BASE_URL && API_BASE_URL.endsWith('/api') ? API_BASE_URL.slice(0, -4) : API_BASE_URL || 'http://localhost:5000';
-import { bookingApi } from '../../api/bookingApi';
 import { getErrorMessage } from '../../api/apiClient';
 import AppInput from '../../components/AppInput';
 import AppButton from '../../components/AppButton';
 import ErrorMessage from '../../components/ErrorMessage';
 import { colors } from '../../constants/colors';
 import { bookingPaymentMethods } from '../../constants/status';
-import { isPositiveInt, isRequired } from '../../utils/validators';
+import { isCardHolderName, isCardExpiryValid, isCvvValid, isLuhnValid, isMobileMoneyPhone, isPositiveInt, isRequired, normalizeDigits } from '../../utils/validators';
 
 export default function CreateBookingScreen({ route, navigation }) {
   const preEventId = route?.params?.eventId || '';
@@ -20,9 +21,17 @@ export default function CreateBookingScreen({ route, navigation }) {
   const [ticketTypeId, setTicketTypeId] = useState('');
   const [quantity, setQuantity] = useState('1');
   const [paymentMethod, setPaymentMethod] = useState('Pay at Venue');
+  const [cardHolderName, setCardHolderName] = useState('');
+  const [cardNumber, setCardNumber] = useState('');
+  const [cardExpiryMonth, setCardExpiryMonth] = useState('');
+  const [cardExpiryYear, setCardExpiryYear] = useState('');
+  const [cardCvv, setCardCvv] = useState('');
+  const [mobileMoneyProvider, setMobileMoneyProvider] = useState('MTN MoMo');
+  const [mobileMoneyPhone, setMobileMoneyPhone] = useState('');
   const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
   const [events, setEvents] = useState([]);
+  const [bookableEventIds, setBookableEventIds] = useState([]);
   const [ticketTypes, setTicketTypes] = useState([]);
   const [selectedEvent, setSelectedEvent] = useState(null);
   const [sessions, setSessions] = useState([]);
@@ -30,17 +39,37 @@ export default function CreateBookingScreen({ route, navigation }) {
   const [showEvents, setShowEvents] = useState(false);
   const [showTickets, setShowTickets] = useState(false);
 
+  const activeTicketTypes = (items) => (items || []).filter((ticket) => ticket.status === 'Active');
+
   useEffect(() => {
     const load = async () => {
       try {
-        const res = await eventApi.getAll();
-        setEvents(res.data || []);
-        // if preEventId provided, prefill ticket types (we'll fetch fresh detail later)
+        const [eventRes, ticketRes] = await Promise.all([
+          eventApi.getAll(),
+          ticketTypeApi.getAll(),
+        ]);
+
+        const allEvents = eventRes.data || [];
+        const allTicketTypes = ticketRes.data || [];
+        const activeBookableIds = Array.from(new Set(
+          allTicketTypes
+            .filter((ticket) => ticket.status === 'Active' && Number(ticket.availableQuantity) > 0)
+            .map((ticket) => (typeof ticket.eventId === 'object' ? ticket.eventId?._id : ticket.eventId))
+            .filter(Boolean)
+        ));
+
+        setBookableEventIds(activeBookableIds);
+        setEvents(allEvents.filter((event) => activeBookableIds.includes(event._id)));
+
         if (preEventId) {
-          const ev = (res.data || []).find((e) => e._id === preEventId);
+          const ev = allEvents.find((e) => e._id === preEventId);
           if (ev) {
-            setTicketTypes(ev.ticketTypeIds || []);
             setSelectedEvent(ev);
+            const ticketRes = await ticketTypeApi.getAll({ eventId: ev._id });
+            setTicketTypes(activeTicketTypes(ticketRes.data));
+            if (!activeBookableIds.includes(ev._id)) {
+              setError('This event has no active ticket types available for booking.');
+            }
           }
         }
       } catch (e) {
@@ -54,19 +83,51 @@ export default function CreateBookingScreen({ route, navigation }) {
     setError('');
     if (!isRequired(eventId)) return setError('Event is required.');
     if (!isRequired(ticketTypeId)) return setError('Ticket type is required.');
+    if (!bookableEventIds.includes(eventId)) return setError('Selected event has no active ticket types available for booking.');
+    if (!ticketTypes.some((ticket) => ticket._id === ticketTypeId)) return setError('Please select a valid ticket type for the selected event.');
     if (!isPositiveInt(quantity)) return setError('Quantity must be greater than 0.');
     if (maxQuantity != null && Number(quantity) > maxQuantity) return setError(`Only ${maxQuantity} tickets available for selected ticket type.`);
 
+    let paymentDetails = undefined;
+    if (paymentMethod === 'Card') {
+      const sanitizedCardNumber = normalizeDigits(cardNumber);
+      const sanitizedCvv = normalizeDigits(cardCvv);
+      if (!isCardHolderName(cardHolderName)) return setError('Cardholder name must use letters and common punctuation only.');
+      if (!/^\d{13,19}$/.test(sanitizedCardNumber)) return setError('Card number must contain 13 to 19 digits.');
+      if (!isLuhnValid(sanitizedCardNumber)) return setError('Card number is invalid.');
+      if (!isCardExpiryValid(cardExpiryMonth, cardExpiryYear)) return setError('Card expiry date must be valid and not expired.');
+      if (!isCvvValid(sanitizedCvv, sanitizedCardNumber)) return setError('CVV is invalid for the selected card.');
+      paymentDetails = {
+        cardHolderName: cardHolderName.trim(),
+        cardNumber: sanitizedCardNumber,
+        expiryMonth: cardExpiryMonth,
+        expiryYear: cardExpiryYear,
+        cvv: sanitizedCvv,
+      };
+    }
+
+    if (paymentMethod === 'Mobile Money') {
+      if (!isRequired(mobileMoneyProvider)) return setError('Mobile money provider is required.');
+      if (!isMobileMoneyPhone(mobileMoneyPhone)) {
+        return setError('Mobile money phone number must contain 7 to 15 digits.');
+      }
+      paymentDetails = {
+        provider: mobileMoneyProvider.trim(),
+        phoneNumber: String(mobileMoneyPhone).trim(),
+      };
+    }
+
     try {
       setSaving(true);
-      await bookingApi.create({
+      const res = await bookingApi.create({
         eventId: eventId.trim(),
         ticketTypeId: ticketTypeId.trim(),
         quantity: Number(quantity),
         paymentMethod,
+        ...(paymentDetails ? { paymentDetails } : {}),
       });
-      Alert.alert('Success', 'Booking created');
-      navigation.goBack();
+      Alert.alert('Success', 'Booking created and payment processed');
+      navigation.replace('BookingDetails', { id: res.data._id });
     } catch (e) {
       setError(getErrorMessage(e));
     } finally {
@@ -105,7 +166,14 @@ export default function CreateBookingScreen({ route, navigation }) {
                         const detail = await eventApi.getById(e._id);
                         const ev = detail.data || e;
                         setSelectedEvent(ev);
-                        setTicketTypes(ev.ticketTypeIds || []);
+                        const ticketRes = await ticketTypeApi.getAll({ eventId: e._id });
+                        const scopedTickets = activeTicketTypes(ticketRes.data).filter((ticket) => Number(ticket.availableQuantity) > 0);
+                        setTicketTypes(scopedTickets);
+                        if (scopedTickets.length === 0) {
+                          setError('This event has no active ticket types available for booking.');
+                        } else {
+                          setError('');
+                        }
                         // fetch sessions for event
                         try {
                           const sess = await sessionAgendaApi.getByEvent(e._id);
@@ -116,7 +184,19 @@ export default function CreateBookingScreen({ route, navigation }) {
                         setMaxQuantity(null);
                       } catch (err) {
                         // fallback
-                        setTicketTypes(e.ticketTypeIds || []);
+                        try {
+                          const ticketRes = await ticketTypeApi.getAll({ eventId: e._id });
+                          const scopedTickets = activeTicketTypes(ticketRes.data).filter((ticket) => Number(ticket.availableQuantity) > 0);
+                          setTicketTypes(scopedTickets);
+                          if (scopedTickets.length === 0) {
+                            setError('This event has no active ticket types available for booking.');
+                          } else {
+                            setError('');
+                          }
+                        } catch (ticketErr) {
+                          setTicketTypes([]);
+                          setError('This event has no active ticket types available for booking.');
+                        }
                         setSelectedEvent(e);
                         setSessions([]);
                       }
@@ -175,7 +255,7 @@ export default function CreateBookingScreen({ route, navigation }) {
             <View style={styles.selectorCard}>
               <Text style={styles.selectorLabel}>Ticket type</Text>
               <TouchableOpacity activeOpacity={0.85} onPress={() => setShowTickets((s) => !s)} style={styles.selectorBox}>
-                <Text style={styles.selectorText}>{ticketTypes.find((t) => t._id === ticketTypeId)?.name || 'Select ticket type / MongoDB ObjectId'}</Text>
+                <Text style={styles.selectorText}>{ticketTypes.find((t) => t._id === ticketTypeId)?.name || (eventId ? 'Select ticket type' : 'Select event first')}</Text>
               </TouchableOpacity>
               {showTickets && (
                 <View style={styles.listBox}>
@@ -185,6 +265,11 @@ export default function CreateBookingScreen({ route, navigation }) {
                       <Text style={styles.listItemMeta}>{t.price ? `Price ${t.price}` : ''} {t.availableQuantity != null ? ` — ${t.availableQuantity} available` : ''}</Text>
                     </TouchableOpacity>
                   ))}
+                  {ticketTypes.length === 0 && (
+                    <View style={styles.emptyListItem}>
+                      <Text style={styles.emptyListText}>No active ticket types available for this event.</Text>
+                    </View>
+                  )}
                 </View>
               )}
             </View>
@@ -196,7 +281,7 @@ export default function CreateBookingScreen({ route, navigation }) {
 
             <View style={styles.selectorCard}>
               <Text style={styles.selectorLabel}>Payment method</Text>
-              <Text style={styles.paymentHint}>Choose how the customer will pay for this booking.</Text>
+              <Text style={styles.paymentHint}>Choose how the customer will pay and enter the required payment details below.</Text>
               <View style={styles.paymentOptions}>
                 {bookingPaymentMethods.map((method) => (
                   <TouchableOpacity
@@ -212,6 +297,36 @@ export default function CreateBookingScreen({ route, navigation }) {
               <Text style={styles.paymentSummary}>Selected: {paymentMethod}</Text>
             </View>
 
+            {paymentMethod === 'Card' && (
+              <View style={styles.selectorCard}>
+                <Text style={styles.selectorLabel}>Card details</Text>
+                <Text style={styles.paymentHint}>Card data is validated and only safe payment metadata is stored.</Text>
+                <AppInput label="Cardholder name" value={cardHolderName} onChangeText={setCardHolderName} placeholder="Name on card" />
+                <AppInput label="Card number" value={cardNumber} onChangeText={setCardNumber} placeholder="1234 5678 9012 3456" keyboardType="numeric" />
+                <View style={styles.twoColumn}>
+                  <View style={styles.fieldColumn}><AppInput label="Expiry month" value={cardExpiryMonth} onChangeText={setCardExpiryMonth} placeholder="MM" keyboardType="numeric" maxLength={2} /></View>
+                  <View style={styles.fieldColumn}><AppInput label="Expiry year" value={cardExpiryYear} onChangeText={setCardExpiryYear} placeholder="YY or YYYY" keyboardType="numeric" maxLength={4} /></View>
+                </View>
+                <AppInput label="CVV" value={cardCvv} onChangeText={setCardCvv} placeholder="123" keyboardType="numeric" maxLength={4} />
+              </View>
+            )}
+
+            {paymentMethod === 'Mobile Money' && (
+              <View style={styles.selectorCard}>
+                <Text style={styles.selectorLabel}>Mobile money details</Text>
+                <Text style={styles.paymentHint}>Enter the provider and phone number used for the wallet payment.</Text>
+                <AppInput label="Provider" value={mobileMoneyProvider} onChangeText={setMobileMoneyProvider} placeholder="MTN MoMo / Airtel Money / Vodafone Cash" />
+                <AppInput label="Phone number" value={mobileMoneyPhone} onChangeText={setMobileMoneyPhone} placeholder="+256700000000" keyboardType="phone-pad" />
+              </View>
+            )}
+
+            {paymentMethod === 'Pay at Venue' && (
+              <View style={styles.selectorCard}>
+                <Text style={styles.selectorLabel}>Pay at venue</Text>
+                <Text style={styles.paymentHint}>No card details required. The booking will be created with payment pending at the venue.</Text>
+              </View>
+            )}
+
             <AppInput label="Quantity" value={quantity} onChangeText={(val) => {
               const digits = String(val).replace(/[^0-9]/g, '');
               if (digits === '') return setQuantity('');
@@ -220,8 +335,8 @@ export default function CreateBookingScreen({ route, navigation }) {
               if (n < 1) n = 1;
               setQuantity(String(n));
             }} placeholder="1" keyboardType="numeric" />
-            <Text style={styles.helperText}>Senior UX note: these ID fields are styled as selectors. Replace them with real event/ticket pickers when the lookup endpoints are wired.</Text>
-            <AppButton title={saving ? 'Creating booking...' : 'Create booking'} onPress={onSave} disabled={saving} />
+            <Text style={styles.helperText}>Payment details are required only for card and mobile money bookings.</Text>
+            <AppButton title={saving ? 'Processing payment...' : paymentMethod === 'Card' ? 'Pay & Book' : paymentMethod === 'Mobile Money' ? 'Book & Pay' : 'Create booking'} onPress={onSave} disabled={saving || !eventId || ticketTypes.length === 0} />
           </View>
         </View>
       </ScrollView>
@@ -251,6 +366,8 @@ const styles = StyleSheet.create({
   selectedEventImage: { width: '100%', height: 240, borderRadius: 16, marginBottom: 12 },
   listItemTitle: { fontWeight: '700', color: colors.text },
   listItemMeta: { color: colors.muted, fontSize: 12, marginTop: 4 },
+  emptyListItem: { padding: 12 },
+  emptyListText: { color: colors.muted, fontSize: 12 },
   helperText: { color: colors.muted, fontSize: 12, lineHeight: 18, marginTop: -4, marginBottom: 12 },
   paymentHint: { color: colors.muted, fontSize: 12, lineHeight: 18, marginBottom: 10 },
   paymentOptions: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginBottom: 10 },
@@ -259,4 +376,6 @@ const styles = StyleSheet.create({
   paymentChipText: { color: colors.text, fontWeight: '800', fontSize: 12 },
   paymentChipTextActive: { color: '#fff' },
   paymentSummary: { color: colors.primary, fontWeight: '800', fontSize: 12 },
+  twoColumn: { flexDirection: 'row', gap: 10 },
+  fieldColumn: { flex: 1 },
 });

@@ -81,7 +81,7 @@ export default function AddEventScreen({ navigation }) {
             <ErrorMessage message={error} />
             <AppInput label="Event title" value={title} onChangeText={setTitle} placeholder="Event title" />
             <AppInput label="Description" value={description} onChangeText={setDescription} placeholder="Optional event description" />
-            
+
             <View style={styles.imageSection}>
               <Text style={styles.sectionTitle}>Event image</Text>
               {imagePreview ? (

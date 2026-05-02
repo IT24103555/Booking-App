@@ -1,5 +1,5 @@
 import React, { useContext, useEffect, useState } from 'react';
-import { Alert, View, Text, StyleSheet, ScrollView } from 'react-native';
+import { Alert, View, Text, StyleSheet, ScrollView, Platform } from 'react-native';
 import { bookingApi } from '../../api/bookingApi';
 import { getErrorMessage } from '../../api/apiClient';
 import AppCard from '../../components/AppCard';
@@ -11,6 +11,7 @@ import { confirmDialog } from '../../components/ConfirmDialog';
 import { colors } from '../../constants/colors';
 import { formatDate } from '../../utils/formatDate';
 import { AuthContext } from '../../context/AuthContext';
+import { downloadBookingReceipt } from '../../utils/bookingReceipt';
 
 function DetailRow({ label, value }) {
   return (
@@ -71,6 +72,13 @@ export default function BookingDetailsScreen({ route, navigation }) {
     }
   };
 
+  const onDownloadReceipt = () => {
+    const downloaded = downloadBookingReceipt(item);
+    if (!downloaded) {
+      Alert.alert('Receipt unavailable', Platform.OS === 'web' ? 'The receipt could not be generated.' : 'Receipt download is currently supported on web only.');
+    }
+  };
+
   const getStatusColor = (status) => {
     if (status === 'Confirmed') return '#10b981'; // green
     if (status === 'Cancelled') return '#ef4444'; // red
@@ -101,11 +109,18 @@ export default function BookingDetailsScreen({ route, navigation }) {
               <DetailRow label="Quantity" value={String(item.quantity)} />
               <DetailRow label="Payment Method" value={item.paymentMethod} />
               <DetailRow label="Payment Status" value={item.paymentStatus} />
+              <DetailRow label="Payment Reference" value={item.paymentReference} />
+              <DetailRow label="Payment Completed" value={item.paymentCompletedAt ? formatDate(item.paymentCompletedAt) : '-'} />
+              {item.paymentDetails?.cardMaskedNumber && <DetailRow label="Card Number" value={item.paymentDetails.cardMaskedNumber} />}
+              {item.paymentDetails?.cardBrand && <DetailRow label="Card Brand" value={item.paymentDetails.cardBrand} />}
+              {item.paymentDetails?.provider && <DetailRow label="Provider" value={item.paymentDetails.provider} />}
+              {item.paymentDetails?.phoneNumber && <DetailRow label="Phone Number" value={item.paymentDetails.phoneNumber} />}
               <DetailRow label="Created" value={formatDate(item.createdAt)} />
               <DetailRow label="Booking ID" value={item._id} />
             </AppCard>
 
             <View style={styles.actionPanel}>
+              <AppButton title="Download Receipt" onPress={onDownloadReceipt} />
               {isStaff && (
                 <>
                   {item.status !== 'Confirmed' && item.status !== 'Cancelled' && (

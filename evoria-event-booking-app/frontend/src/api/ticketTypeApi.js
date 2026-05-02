@@ -1,8 +1,8 @@
 import { apiClient } from './apiClient';
 
 export const ticketTypeApi = {
-  getAll: async () => {
-    const res = await apiClient.get('/ticket-types');
+  getAll: async (params = {}) => {
+    const res = await apiClient.get('/ticket-types', { params });
     return res.data;
   },
   getById: async (id) => {

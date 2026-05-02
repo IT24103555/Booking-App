@@ -4,6 +4,23 @@ const TicketType = require('../models/TicketType');
 const validateObjectId = require('../utils/validateObjectId');
 const { createBookingSchema, updateBookingSchema } = require('../validations/bookingValidation');
 
+const generatePaymentReference = () => `PAY-${Date.now().toString(36).toUpperCase()}-${Math.random().toString(36).slice(2, 8).toUpperCase()}`;
+
+const detectCardBrand = (cardNumber) => {
+  const digits = String(cardNumber || '');
+  if (/^4/.test(digits)) return 'Visa';
+  if (/^(5[1-5]|2[2-7])/.test(digits)) return 'Mastercard';
+  if (/^3[47]/.test(digits)) return 'American Express';
+  if (/^(6011|65)/.test(digits)) return 'Discover';
+  return 'Card';
+};
+
+const maskCardNumber = (cardNumber) => {
+  const digits = String(cardNumber || '').replace(/\D/g, '');
+  const last4 = digits.slice(-4);
+  return `**** **** **** ${last4}`;
+};
+
 // Helper: adjust ticket availability safely
 const decreaseAvailability = async (ticketTypeId, quantity) => {
   // Atomic update to prevent overbooking
@@ -30,7 +47,7 @@ const createBooking = async (req, res, next) => {
       return res.status(400).json({ success: false, message: error.details[0].message });
     }
 
-    const { eventId, ticketTypeId, quantity, paymentMethod } = value;
+    const { eventId, ticketTypeId, quantity, paymentMethod, paymentDetails } = value;
     if (!validateObjectId(eventId) || !validateObjectId(ticketTypeId)) {
       return res.status(400).json({ success: false, message: 'Invalid eventId or ticketTypeId' });
     }
@@ -38,6 +55,18 @@ const createBooking = async (req, res, next) => {
     const event = await Event.findById(eventId);
     if (!event) {
       return res.status(404).json({ success: false, message: 'Event not found' });
+    }
+
+    const activeTicketCount = await TicketType.countDocuments({
+      eventId,
+      status: 'Active',
+      availableQuantity: { $gt: 0 },
+    });
+    if (activeTicketCount === 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'This event has no active ticket types available for booking',
+      });
     }
 
     // Ensure the requested ticket type belongs to this event
@@ -56,6 +85,33 @@ const createBooking = async (req, res, next) => {
     if (ticketType.status !== 'Active') {
       return res.status(400).json({ success: false, message: 'Ticket type is inactive' });
     }
+    if (ticketType.availableQuantity < 1) {
+      return res.status(400).json({ success: false, message: 'Selected ticket type is sold out' });
+    }
+    if (ticketType.eventId && ticketType.eventId.toString() !== eventId.toString()) {
+      return res.status(400).json({ success: false, message: 'Ticket type does not belong to the selected event' });
+    }
+
+    const paymentReference = paymentMethod === 'Pay at Venue' ? '' : generatePaymentReference();
+    const processedAt = paymentMethod === 'Pay at Venue' ? null : new Date();
+    const isInstantPayment = paymentMethod === 'Card' || paymentMethod === 'Mobile Money';
+    const safePaymentDetails = paymentMethod === 'Card'
+      ? {
+          cardHolderName: paymentDetails.cardHolderName,
+          cardBrand: detectCardBrand(paymentDetails.cardNumber),
+          cardLast4: String(paymentDetails.cardNumber).slice(-4),
+          cardMaskedNumber: maskCardNumber(paymentDetails.cardNumber),
+          expiryMonth: paymentDetails.expiryMonth,
+          expiryYear: paymentDetails.expiryYear,
+          transactionStatus: 'Approved',
+        }
+      : paymentMethod === 'Mobile Money'
+        ? {
+            provider: paymentDetails.provider,
+            phoneNumber: paymentDetails.phoneNumber,
+            transactionStatus: 'Approved',
+          }
+        : {};
 
     // Prevent overbooking by decreasing availability atomically
     const updatedTicket = await decreaseAvailability(ticketTypeId, quantity);
@@ -72,7 +128,10 @@ const createBooking = async (req, res, next) => {
       quantity,
       totalAmount,
       paymentMethod,
-      paymentStatus: 'Pending',
+      paymentStatus: isInstantPayment ? 'Paid' : 'Pending',
+      paymentReference,
+      paymentCompletedAt: processedAt,
+      paymentDetails: safePaymentDetails,
       status: 'Pending',
     });
 
