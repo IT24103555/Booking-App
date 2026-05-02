@@ -1,18 +1,145 @@
 import React, { useEffect, useState } from 'react';
-import { Alert, Image, KeyboardAvoidingView, Platform, ScrollView, TouchableOpacity, View, Text, StyleSheet } from 'react-native';
-import { venueApi } from '../../api/venueApi';
-import { getErrorMessage } from '../../api/apiClient';
+import { Alert, Image, KeyboardAvoidingView, Platform, ScrollView, Text, TouchableOpacity, View, StyleSheet } from 'react-native';
 import AppInput from '../../components/AppInput';
 import AppButton from '../../components/AppButton';
 import ErrorMessage from '../../components/ErrorMessage';
+import { venueApi } from '../../api/venueApi';
+import { getErrorMessage } from '../../api/apiClient';
 import LoadingSpinner from '../../components/LoadingSpinner';
 import { isPositiveInt, isRequired } from '../../utils/validators';
+import { API_BASE_URL } from '../../config/apiConfig';
+
+const UPLOADS_BASE = API_BASE_URL && API_BASE_URL.endsWith('/api') ? API_BASE_URL.slice(0, -4) : API_BASE_URL || 'http://localhost:5000';
+const resolveImageUrl = (value) => (!value ? null : String(value).startsWith('http') ? value : encodeURI(`${UPLOADS_BASE}${value}`));
+
 const STATUS_OPTIONS = ['Available', 'Unavailable'];
-function OptionChip({ label, selected, onPress }) { return <TouchableOpacity activeOpacity={0.85} onPress={onPress} style={[styles.optionChip, selected && styles.optionChipSelected]}><Text style={[styles.optionText, selected && styles.optionTextSelected]}>{label}</Text></TouchableOpacity>; }
-export default function EditVenueScreen({ route, navigation }) { const { id } = route.params; const [loading, setLoading] = useState(true); const [saving, setSaving] = useState(false); const [error, setError] = useState(''); const [name, setName] = useState(''); const [location, setLocation] = useState(''); const [capacity, setCapacity] = useState('1'); const [description, setDescription] = useState(''); const [imageUrl, setImageUrl] = useState(''); const [status, setStatus] = useState('Available');
-  useEffect(() => { const load = async () => { try { setError(''); setLoading(true); const res = await venueApi.getById(id); const v = res.data; setName(v?.name || ''); setLocation(v?.location || ''); setCapacity(String(v?.capacity ?? 1)); setDescription(v?.description || ''); setImageUrl(v?.image || ''); setStatus(v?.status || 'Available'); } catch (e) { setError(getErrorMessage(e)); } finally { setLoading(false); } }; load(); }, [id]);
-  const onSave = async () => { setError(''); if (!isRequired(name)) return setError('Name is required'); if (!isRequired(location)) return setError('Location is required'); if (!isPositiveInt(capacity)) return setError('Capacity must be > 0'); if (!STATUS_OPTIONS.includes(status)) return setError('Status must be Available or Unavailable'); try { setSaving(true); await venueApi.update(id, { name: name.trim(), location: location.trim(), capacity: Number(capacity), description: description.trim(), image: imageUrl.trim() || undefined, status }); Alert.alert('Success', 'Venue updated'); navigation.goBack(); } catch (e) { setError(getErrorMessage(e)); } finally { setSaving(false); } };
-  if (loading) return <LoadingSpinner />;
-  return <KeyboardAvoidingView style={styles.keyboard} behavior={Platform.OS === 'ios' ? 'padding' : undefined}><ScrollView contentContainerStyle={styles.page} showsVerticalScrollIndicator={false}><View style={styles.heroCard}>{imageUrl ? <Image source={{ uri: imageUrl }} style={styles.heroImage} /> : <View style={styles.heroPlaceholder}><Text style={styles.heroIcon}>🏛️</Text></View>}<View style={styles.heroOverlay}><Text style={styles.kicker}>Venue control</Text><Text style={styles.title}>Edit venue</Text><Text style={styles.subtitle}>Refine venue information and keep availability accurate.</Text></View></View><View style={styles.card}><ErrorMessage message={error} /><Text style={styles.sectionTitle}>Venue information</Text><AppInput label="Name" value={name} onChangeText={setName} placeholder="Venue name" /><AppInput label="Location" value={location} onChangeText={setLocation} placeholder="Venue location" /><AppInput label="Capacity" value={capacity} onChangeText={setCapacity} placeholder="200" keyboardType="numeric" /><AppInput label="Description" value={description} onChangeText={setDescription} placeholder="Optional" /><AppInput label="Image URL (optional)" value={imageUrl} onChangeText={setImageUrl} placeholder="https://..." /><View style={styles.optionSection}><Text style={styles.label}>Status</Text><View style={styles.optionRow}>{STATUS_OPTIONS.map((option) => <OptionChip key={option} label={option} selected={status === option} onPress={() => setStatus(option)} />)}</View></View><View style={styles.actions}><AppButton title={saving ? 'Saving...' : 'Save Venue'} onPress={onSave} disabled={saving} /></View></View></ScrollView></KeyboardAvoidingView>;
+
+function OptionChip({ label, selected, onPress }) {
+  return (
+    <TouchableOpacity activeOpacity={0.85} onPress={onPress} style={[styles.optionChip, selected && styles.optionChipSelected]}>
+      <Text style={[styles.optionText, selected && styles.optionTextSelected]}>{label}</Text>
+    </TouchableOpacity>
+  );
 }
-const styles = StyleSheet.create({ keyboard: { flex: 1, backgroundColor: '#FFF7FB' }, page: { flexGrow: 1, padding: 20, backgroundColor: '#FFF7FB', paddingBottom: 34 }, heroCard: { height: 230, borderRadius: 32, overflow: 'hidden', backgroundColor: '#6C5CE7', marginBottom: 18, shadowColor: '#6C5CE7', shadowOffset: { width: 0, height: 14 }, shadowOpacity: 0.22, shadowRadius: 22, elevation: 8 }, heroImage: { width: '100%', height: '100%' }, heroPlaceholder: { flex: 1, alignItems: 'center', justifyContent: 'center' }, heroIcon: { fontSize: 52 }, heroOverlay: { position: 'absolute', left: 0, right: 0, bottom: 0, padding: 22, backgroundColor: 'rgba(31,29,43,0.28)' }, kicker: { color: '#EDE9FE', fontSize: 12, fontWeight: '900', letterSpacing: 1.2, textTransform: 'uppercase' }, title: { color: '#FFFFFF', fontSize: 28, fontWeight: '900', marginTop: 5 }, subtitle: { color: '#F4F1FF', fontSize: 14, lineHeight: 20, marginTop: 6 }, card: { backgroundColor: '#FFFFFF', borderRadius: 28, padding: 20, borderWidth: 1, borderColor: '#FCE1EE', shadowColor: '#2D0A35', shadowOffset: { width: 0, height: 12 }, shadowOpacity: 0.08, shadowRadius: 22, elevation: 5 }, sectionTitle: { color: '#1F1D2B', fontSize: 20, fontWeight: '900', marginBottom: 12 }, optionSection: { marginTop: 12 }, label: { color: '#1F1D2B', fontSize: 14, fontWeight: '800', marginBottom: 10 }, optionRow: { flexDirection: 'row' }, optionChip: { paddingHorizontal: 14, paddingVertical: 10, borderRadius: 16, backgroundColor: '#F5F3FF', borderWidth: 1, borderColor: '#DDD6FE', marginRight: 8 }, optionChipSelected: { backgroundColor: '#6C5CE7', borderColor: '#6C5CE7' }, optionText: { color: '#5B21B6', fontSize: 13, fontWeight: '800' }, optionTextSelected: { color: '#FFFFFF' }, actions: { marginTop: 18 } });
+
+export default function EditVenueScreen({ route, navigation }) {
+  const { id } = route.params;
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState('');
+  const [name, setName] = useState('');
+  const [location, setLocation] = useState('');
+  const [capacity, setCapacity] = useState('1');
+  const [description, setDescription] = useState('');
+  const [imageUrl, setImageUrl] = useState('');
+  const [status, setStatus] = useState('Available');
+
+  useEffect(() => {
+    const load = async () => {
+      try {
+        setError('');
+        setLoading(true);
+        const res = await venueApi.getById(id);
+        const v = res.data;
+        setName(v?.name || '');
+        setLocation(v?.location || '');
+        setCapacity(String(v?.capacity ?? 1));
+        setDescription(v?.description || '');
+        setImageUrl(v?.image || '');
+        setStatus(v?.status || 'Available');
+      } catch (e) {
+        setError(getErrorMessage(e));
+      } finally {
+        setLoading(false);
+      }
+    };
+    load();
+  }, [id]);
+
+  const onSave = async () => {
+    setError('');
+    if (!isRequired(name)) return setError('Name is required');
+    if (!isRequired(location)) return setError('Location is required');
+    if (!isPositiveInt(capacity)) return setError('Capacity must be > 0');
+    if (!STATUS_OPTIONS.includes(status)) return setError('Status must be Available or Unavailable');
+
+    try {
+      setSaving(true);
+      await venueApi.update(id, {
+        name: name.trim(),
+        location: location.trim(),
+        capacity: Number(capacity),
+        description: description.trim(),
+        image: imageUrl.trim() || undefined,
+        status,
+      });
+      Alert.alert('Success', 'Venue updated');
+      navigation.goBack();
+    } catch (e) {
+      setError(getErrorMessage(e));
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  if (loading) return <LoadingSpinner />;
+
+  const previewUri = resolveImageUrl(imageUrl);
+
+  return (
+    <KeyboardAvoidingView style={styles.keyboard} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+      <ScrollView contentContainerStyle={styles.page} showsVerticalScrollIndicator={false}>
+        <View style={styles.heroCard}>
+          {previewUri ? <Image source={{ uri: previewUri }} style={styles.heroImage} /> : <View style={styles.heroPlaceholder}><Text style={styles.heroIcon}>🏛️</Text></View>}
+          <View style={styles.heroOverlay}>
+            <Text style={styles.kicker}>Venue control</Text>
+            <Text style={styles.title}>Edit venue</Text>
+            <Text style={styles.subtitle}>Refine venue information and keep availability accurate.</Text>
+          </View>
+        </View>
+
+        <View style={styles.card}>
+          <ErrorMessage message={error} />
+          <Text style={styles.sectionTitle}>Venue information</Text>
+          <AppInput label="Name" value={name} onChangeText={setName} placeholder="Venue name" />
+          <AppInput label="Location" value={location} onChangeText={setLocation} placeholder="Venue location" />
+          <AppInput label="Capacity" value={capacity} onChangeText={setCapacity} placeholder="200" keyboardType="numeric" />
+          <AppInput label="Description" value={description} onChangeText={setDescription} placeholder="Optional" />
+          <AppInput label="Image URL (optional)" value={imageUrl} onChangeText={setImageUrl} placeholder="https://..." />
+          <View style={styles.optionSection}>
+            <Text style={styles.label}>Status</Text>
+            <View style={styles.optionRow}>
+              {STATUS_OPTIONS.map((option) => (
+                <OptionChip key={option} label={option} selected={status === option} onPress={() => setStatus(option)} />
+              ))}
+            </View>
+          </View>
+          <View style={styles.actions}><AppButton title={saving ? 'Saving...' : 'Save Venue'} onPress={onSave} disabled={saving} /></View>
+        </View>
+      </ScrollView>
+    </KeyboardAvoidingView>
+  );
+}
+
+const styles = StyleSheet.create({
+  keyboard: { flex: 1, backgroundColor: '#FFF7FB' },
+  page: { flexGrow: 1, padding: 20, backgroundColor: '#FFF7FB', paddingBottom: 34 },
+  heroCard: { height: 230, borderRadius: 32, overflow: 'hidden', backgroundColor: '#6C5CE7', marginBottom: 18, shadowColor: '#6C5CE7', shadowOffset: { width: 0, height: 14 }, shadowOpacity: 0.22, shadowRadius: 22, elevation: 8 },
+  heroImage: { width: '100%', height: '100%' },
+  heroPlaceholder: { flex: 1, alignItems: 'center', justifyContent: 'center' },
+  heroIcon: { fontSize: 52 },
+  heroOverlay: { position: 'absolute', left: 0, right: 0, bottom: 0, padding: 22, backgroundColor: 'rgba(31,29,43,0.28)' },
+  kicker: { color: '#EDE9FE', fontSize: 12, fontWeight: '900', letterSpacing: 1.2, textTransform: 'uppercase' },
+  title: { color: '#FFFFFF', fontSize: 28, fontWeight: '900', marginTop: 5 },
+  subtitle: { color: '#F4F1FF', fontSize: 14, lineHeight: 20, marginTop: 6 },
+  card: { backgroundColor: '#FFFFFF', borderRadius: 28, padding: 20, borderWidth: 1, borderColor: '#FCE1EE', shadowColor: '#2D0A35', shadowOffset: { width: 0, height: 12 }, shadowOpacity: 0.08, shadowRadius: 22, elevation: 5 },
+  sectionTitle: { color: '#1F1D2B', fontSize: 20, fontWeight: '900', marginBottom: 12 },
+  optionSection: { marginTop: 12 },
+  label: { color: '#1F1D2B', fontSize: 14, fontWeight: '800', marginBottom: 10 },
+  optionRow: { flexDirection: 'row' },
+  optionChip: { paddingHorizontal: 14, paddingVertical: 10, borderRadius: 16, backgroundColor: '#F5F3FF', borderWidth: 1, borderColor: '#DDD6FE', marginRight: 8 },
+  optionChipSelected: { backgroundColor: '#6C5CE7', borderColor: '#6C5CE7' },
+  optionText: { color: '#5B21B6', fontSize: 13, fontWeight: '800' },
+  optionTextSelected: { color: '#FFFFFF' },
+  actions: { marginTop: 18 },
+});
