@@ -52,4 +52,4 @@ const getAutoDetectedApiBaseUrl = () => {
 export const API_BASE_URL =
 	process.env.EXPO_PUBLIC_API_BASE_URL ||
 	getAutoDetectedApiBaseUrl() ||
-	'http://localhost:5000/api';
+	'https://booking-app-production-f607.up.railway.app/api';
