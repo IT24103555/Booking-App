@@ -1,24 +1,27 @@
 import React, { useContext } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
-import { colors } from '../../constants/colors';
+import { Alert, View, Text, StyleSheet, ScrollView, TouchableOpacity, SafeAreaView } from 'react-native';
 import AppButton from '../../components/AppButton';
 import { AuthContext } from '../../context/AuthContext';
 
+const UI = { primary: '#EC168C', purple: '#7C3AED', background: '#FFF7FC', surface: '#FFFFFF', text: '#111827', muted: '#7C7C8A', border: '#F0DDEB', softPink: '#FFE7F4' };
+
 const MODULES = [
-  { title: 'Users', description: 'Manage platform accounts and roles.', route: 'UserList' },
-  { title: 'Ticket Types', description: 'Create pricing tiers and availability.', route: 'TicketTypeList' },
-  { title: 'Venues', description: 'Maintain event locations and capacity.', route: 'VenueList' },
-  { title: 'Events', description: 'Publish and manage upcoming events.', route: 'EventList' },
-  { title: 'Bookings', description: 'Review reservations and booking status.', route: 'BookingList' },
-  { title: 'Session Agendas', description: 'Organize sessions, speakers, and schedules.', route: 'SessionAgendaList' },
+  { title: 'Users', description: 'Manage platform accounts and roles.', route: 'UserList', icon: '👥' },
+  { title: 'Ticket Types', description: 'Create pricing tiers and availability.', route: 'TicketTypeList', icon: '🎟️' },
+  { title: 'Venues', description: 'Maintain event locations and capacity.', route: 'VenueList', icon: '📍' },
+  { title: 'Events', description: 'Publish and manage upcoming events.', route: 'EventList', icon: '🗓️' },
+  { title: 'Bookings', description: 'Review reservations and booking status.', route: 'BookingList', icon: '✅' },
+  { title: 'Session Agendas', description: 'Organize sessions, speakers, and schedules.', route: 'SessionAgendaList', icon: '🎤' },
 ];
+
+function SummaryCard({ label, value }) {
+  return <View style={styles.summaryCard}><Text style={styles.summaryValue}>{value}</Text><Text style={styles.summaryLabel}>{label}</Text></View>;
+}
 
 function ModuleCard({ item, onPress }) {
   return (
-    <TouchableOpacity activeOpacity={0.82} style={styles.moduleCard} onPress={onPress}>
-      <View style={styles.moduleIcon}>
-        <Text style={styles.moduleIconText}>{item.title.charAt(0)}</Text>
-      </View>
+    <TouchableOpacity activeOpacity={0.85} style={styles.moduleCard} onPress={onPress}>
+      <View style={styles.moduleIcon}><Text style={styles.moduleIconText}>{item.icon}</Text></View>
       <View style={styles.moduleContent}>
         <Text style={styles.moduleTitle}>{item.title}</Text>
         <Text style={styles.moduleDescription}>{item.description}</Text>
@@ -31,99 +34,71 @@ function ModuleCard({ item, onPress }) {
 export default function DashboardScreen({ navigation }) {
   const { user, logout } = useContext(AuthContext);
 
+  const onMenuPress = () => {
+    Alert.alert('Menu', 'This shortcut is not connected yet. Use the module cards below.');
+  };
+
   return (
-    <ScrollView contentContainerStyle={styles.page} showsVerticalScrollIndicator={false}>
-      <View style={styles.shell}>
-        <View style={styles.hero}>
+    <SafeAreaView style={styles.safeArea}>
+      <ScrollView contentContainerStyle={styles.page} showsVerticalScrollIndicator={false}>
+        <View style={styles.headerRow}>
+          <TouchableOpacity style={styles.backButton} onPress={() => navigation.goBack()}><Text style={styles.backText}>‹</Text></TouchableOpacity>
+          <Text style={styles.headerTitle}>Admin Dashboard</Text>
+          <TouchableOpacity style={styles.menuButton} onPress={onMenuPress}><Text style={styles.menuText}>☰</Text></TouchableOpacity>
+        </View>
+
+        <View style={styles.heroCard}>
           <Text style={styles.kicker}>Control center</Text>
-          <Text style={styles.title}>Dashboard</Text>
-          <Text style={styles.subtitle}>Logged in as {user?.email || 'user'} · {user?.role || 'member'}</Text>
+          <Text style={styles.title}>Welcome, {user?.name || 'Admin'}</Text>
+          <Text style={styles.subtitle}>{user?.email || 'admin@evoria.com'} · {user?.role || 'member'}</Text>
         </View>
 
-        <View style={styles.summaryRow}>
-          <View style={styles.summaryCard}>
-            <Text style={styles.summaryValue}>6</Text>
-            <Text style={styles.summaryLabel}>Management modules</Text>
-          </View>
-          <View style={styles.summaryCard}>
-            <Text style={styles.summaryValue}>{String(user?.role || 'User')}</Text>
-            <Text style={styles.summaryLabel}>Current access level</Text>
-          </View>
+        <View style={styles.summaryGrid}>
+          <SummaryCard label="Total Events" value="128" />
+          <SummaryCard label="Total Bookings" value="356" />
+          <SummaryCard label="Total Users" value="2,450" />
+          <SummaryCard label="Total Revenue" value="NPR 75,000" />
         </View>
 
-        <Text style={styles.sectionTitle}>Manage platform</Text>
-        <View style={styles.grid}>
-          {MODULES.map((item) => (
-            <ModuleCard key={item.route} item={item} onPress={() => navigation.navigate(item.route)} />
-          ))}
+        <View style={styles.sectionHeader}>
+          <Text style={styles.sectionTitle}>Manage Platform</Text>
+        </View>
+        <View style={styles.moduleList}>
+          {MODULES.map((item) => <ModuleCard key={item.route} item={item} onPress={() => navigation.navigate(item.route)} />)}
         </View>
 
         <View style={styles.footerAction}>
           <AppButton title="Logout" variant="danger" onPress={logout} />
         </View>
-      </View>
-    </ScrollView>
+      </ScrollView>
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  page: { flexGrow: 1, padding: 20, backgroundColor: colors.background },
-  shell: { width: '100%', maxWidth: 980, alignSelf: 'center' },
-  hero: {
-    backgroundColor: colors.card,
-    borderRadius: 30,
-    padding: 24,
-    borderWidth: 1,
-    borderColor: colors.border,
-    marginBottom: 14,
-    shadowColor: colors.shadow,
-    shadowOpacity: 0.12,
-    shadowRadius: 22,
-    shadowOffset: { width: 0, height: 12 },
-    elevation: 3,
-  },
-  kicker: { color: colors.accent, fontSize: 12, fontWeight: '900', textTransform: 'uppercase', letterSpacing: 1.2 },
-  title: { marginTop: 6, fontSize: 36, fontWeight: '900', color: colors.text, letterSpacing: -0.6 },
-  subtitle: { marginTop: 8, color: colors.muted, fontSize: 15, lineHeight: 22 },
-  summaryRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 12, marginBottom: 18 },
-  summaryCard: {
-    flexGrow: 1,
-    flexBasis: 230,
-    backgroundColor: colors.primary,
-    borderRadius: 24,
-    padding: 18,
-  },
-  summaryValue: { color: '#fff', fontSize: 24, fontWeight: '900', marginBottom: 4 },
-  summaryLabel: { color: '#fff', opacity: 0.84, fontSize: 13, lineHeight: 18 },
-  sectionTitle: { fontSize: 18, fontWeight: '900', color: colors.text, marginBottom: 10 },
-  grid: { gap: 12 },
-  moduleCard: {
-    backgroundColor: colors.card,
-    borderRadius: 24,
-    padding: 16,
-    borderWidth: 1,
-    borderColor: colors.border,
-    flexDirection: 'row',
-    alignItems: 'center',
-    shadowColor: colors.shadow,
-    shadowOpacity: 0.08,
-    shadowRadius: 14,
-    shadowOffset: { width: 0, height: 8 },
-    elevation: 2,
-  },
-  moduleIcon: {
-    width: 44,
-    height: 44,
-    borderRadius: 16,
-    backgroundColor: colors.primary,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: 14,
-  },
-  moduleIconText: { color: '#fff', fontWeight: '900', fontSize: 18 },
+  safeArea: { flex: 1, backgroundColor: UI.background },
+  page: { padding: 18, paddingBottom: 36 },
+  headerRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 },
+  backButton: { width: 40, height: 40, borderRadius: 14, backgroundColor: '#fff', alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: UI.border },
+  backText: { color: UI.text, fontSize: 28, lineHeight: 28, fontWeight: '900' },
+  menuButton: { width: 40, height: 40, borderRadius: 14, backgroundColor: '#fff', alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: UI.border },
+  menuText: { color: UI.text, fontSize: 18, fontWeight: '900' },
+  headerTitle: { color: UI.text, fontWeight: '900', fontSize: 17 },
+  heroCard: { backgroundColor: UI.primary, borderRadius: 28, padding: 22, marginBottom: 16, shadowColor: UI.primary, shadowOffset: { width: 0, height: 14 }, shadowOpacity: 0.25, shadowRadius: 20, elevation: 9 },
+  kicker: { color: 'rgba(255,255,255,0.8)', fontSize: 12, fontWeight: '900', textTransform: 'uppercase', letterSpacing: 0.6 },
+  title: { color: '#fff', fontSize: 25, fontWeight: '900', marginTop: 8 },
+  subtitle: { color: 'rgba(255,255,255,0.86)', fontWeight: '700', marginTop: 6 },
+  summaryGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 12 },
+  summaryCard: { width: '48%', minHeight: 92, backgroundColor: '#fff', borderRadius: 22, padding: 16, borderWidth: 1, borderColor: UI.border },
+  summaryValue: { color: UI.text, fontSize: 22, fontWeight: '900' },
+  summaryLabel: { color: UI.muted, fontSize: 12, fontWeight: '800', marginTop: 8 },
+  moduleList: { gap: 12 },
+  moduleCard: { backgroundColor: '#fff', borderRadius: 22, padding: 14, flexDirection: 'row', alignItems: 'center', borderWidth: 1, borderColor: UI.border, shadowColor: '#9D174D', shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.06, shadowRadius: 16, elevation: 4 },
+  moduleIcon: { width: 48, height: 48, borderRadius: 17, backgroundColor: UI.softPink, alignItems: 'center', justifyContent: 'center', marginRight: 13 },
+  moduleIconText: { fontSize: 21 },
   moduleContent: { flex: 1 },
-  moduleTitle: { color: colors.text, fontWeight: '900', fontSize: 16, marginBottom: 4 },
-  moduleDescription: { color: colors.muted, lineHeight: 19, fontSize: 13 },
-  moduleArrow: { color: colors.muted, fontSize: 30, marginLeft: 10 },
-  footerAction: { marginTop: 18 },
+  moduleTitle: { color: UI.text, fontSize: 15, fontWeight: '900' },
+  moduleDescription: { color: UI.muted, fontSize: 12, fontWeight: '600', lineHeight: 18, marginTop: 4 },
+  moduleArrow: { color: UI.primary, fontSize: 28, fontWeight: '900' },
+  footerAction: { marginTop: 22 },
 });

@@ -1,5 +1,14 @@
 import React, { useEffect, useState } from 'react';
-import { Alert, View, Text, StyleSheet, ScrollView, KeyboardAvoidingView, Platform } from 'react-native';
+import {
+  Alert,
+  KeyboardAvoidingView,
+  Platform,
+  ScrollView,
+  TouchableOpacity,
+  View,
+  Text,
+  StyleSheet,
+} from 'react-native';
 import { eventApi } from '../../api/eventApi';
 import { getErrorMessage } from '../../api/apiClient';
 import AppInput from '../../components/AppInput';
@@ -8,6 +17,16 @@ import ErrorMessage from '../../components/ErrorMessage';
 import LoadingSpinner from '../../components/LoadingSpinner';
 import { colors } from '../../constants/colors';
 import { isRequired, isTimeHHmm } from '../../utils/validators';
+
+const STATUS_OPTIONS = ['Draft', 'Published', 'Cancelled', 'Completed'];
+
+function OptionChip({ label, selected, onPress }) {
+  return (
+    <TouchableOpacity activeOpacity={0.85} onPress={onPress} style={[styles.optionChip, selected && styles.optionChipSelected]}>
+      <Text style={[styles.optionText, selected && styles.optionTextSelected]}>{label}</Text>
+    </TouchableOpacity>
+  );
+}
 
 export default function EditEventScreen({ route, navigation }) {
   const { id } = route.params;
@@ -34,7 +53,7 @@ export default function EditEventScreen({ route, navigation }) {
         setEventDate(e?.eventDate ? String(e.eventDate).slice(0, 10) : '');
         setStartTime(e?.startTime || '10:00');
         setEndTime(e?.endTime || '12:00');
-        setVenueId(e?.venue?._id || e?.venue || '');
+        setVenueId(e?.venue?._id || e?.venueId?._id || e?.venue || e?.venueId || '');
         setStatus(e?.status || 'Draft');
       } catch (err) {
         setError(getErrorMessage(err));
@@ -54,13 +73,19 @@ export default function EditEventScreen({ route, navigation }) {
     if (!isTimeHHmm(startTime) || !isTimeHHmm(endTime)) return setError('Time must be HH:mm.');
     if (endTime <= startTime) return setError('End time must be after start time.');
     if (!isRequired(venueId)) return setError('Venue ID is required.');
-    if (!['Draft', 'Published', 'Cancelled', 'Completed'].includes(status)) {
-      return setError('Status must be Draft, Published, Cancelled, or Completed.');
-    }
+    if (!STATUS_OPTIONS.includes(status)) return setError('Status must be Draft, Published, Cancelled, or Completed.');
 
     try {
       setSaving(true);
-      await eventApi.update(id, { title: title.trim(), description, eventDate, startTime, endTime, venueId: venueId.trim(), status });
+      await eventApi.update(id, {
+        title: title.trim(),
+        description,
+        eventDate,
+        startTime,
+        endTime,
+        venueId: venueId.trim(),
+        status,
+      });
       Alert.alert('Success', 'Event updated');
       navigation.goBack();
     } catch (e) {
@@ -73,31 +98,44 @@ export default function EditEventScreen({ route, navigation }) {
   if (loading) return <LoadingSpinner />;
 
   return (
-    <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={styles.keyboardView}>
+    <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={styles.keyboard}>
       <ScrollView contentContainerStyle={styles.page} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
-        <View style={styles.shell}>
-          <View style={styles.headerCard}>
-            <Text style={styles.kicker}>Edit event</Text>
+        <View style={styles.heroCard}>
+          <View style={styles.heroIcon}><Text style={styles.heroIconText}>🎫</Text></View>
+          <View style={styles.heroCopy}>
+            <Text style={styles.kicker}>Event control</Text>
             <Text style={styles.title}>Update event details</Text>
-            <Text style={styles.subtitle}>Keep event information accurate before students book tickets.</Text>
+            <Text style={styles.subtitle}>Edit schedule, venue reference, and publishing status with a clean admin workflow.</Text>
           </View>
-          <View style={styles.formCard}>
-            <Text style={styles.sectionTitle}>Event information</Text>
-            <ErrorMessage message={error} />
-            <AppInput label="Event title" value={title} onChangeText={setTitle} placeholder="Event title" />
-            <AppInput label="Description" value={description} onChangeText={setDescription} placeholder="Optional event description" />
-            <View style={styles.twoColumn}>
-              <View style={styles.fieldColumn}><AppInput label="Event Date" value={eventDate} onChangeText={setEventDate} placeholder="YYYY-MM-DD" /></View>
-              <View style={styles.fieldColumn}><AppInput label="Status" value={status} onChangeText={setStatus} placeholder="Draft" /></View>
-            </View>
-            <View style={styles.twoColumn}>
-              <View style={styles.fieldColumn}><AppInput label="Start Time" value={startTime} onChangeText={setStartTime} placeholder="10:00" /></View>
-              <View style={styles.fieldColumn}><AppInput label="End Time" value={endTime} onChangeText={setEndTime} placeholder="12:00" /></View>
-            </View>
-            <AppInput label="Venue ID" value={venueId} onChangeText={setVenueId} placeholder="Select venue / MongoDB ObjectId" />
-            <Text style={styles.helperText}>Senior UX note: replace this ID field with a venue selector when venue lookup API is connected.</Text>
+        </View>
 
-            <AppButton title={saving ? 'Saving...' : 'Save changes'} onPress={onSave} disabled={saving} />
+        <View style={styles.card}>
+          <Text style={styles.sectionTitle}>Event information</Text>
+          <Text style={styles.sectionHint}>Changes will be shown to customers once the event is published.</Text>
+          <ErrorMessage message={error} />
+
+          <AppInput label="Event title" value={title} onChangeText={setTitle} placeholder="Event title" />
+          <AppInput label="Description" value={description} onChangeText={setDescription} placeholder="Optional event description" />
+          <View style={styles.twoColumn}>
+            <View style={styles.column}><AppInput label="Event date" value={eventDate} onChangeText={setEventDate} placeholder="YYYY-MM-DD" /></View>
+            <View style={styles.column}><AppInput label="Venue ID" value={venueId} onChangeText={setVenueId} placeholder="MongoDB ObjectId" /></View>
+          </View>
+          <View style={styles.twoColumn}>
+            <View style={styles.column}><AppInput label="Start time" value={startTime} onChangeText={setStartTime} placeholder="10:00" /></View>
+            <View style={styles.column}><AppInput label="End time" value={endTime} onChangeText={setEndTime} placeholder="12:00" /></View>
+          </View>
+
+          <View style={styles.optionSection}>
+            <Text style={styles.label}>Status</Text>
+            <View style={styles.optionRow}>
+              {STATUS_OPTIONS.map((option) => (
+                <OptionChip key={option} label={option} selected={status === option} onPress={() => setStatus(option)} />
+              ))}
+            </View>
+          </View>
+
+          <View style={styles.actions}>
+            <AppButton title={saving ? 'Saving...' : 'Save event'} onPress={onSave} disabled={saving} />
           </View>
         </View>
       </ScrollView>
@@ -106,16 +144,49 @@ export default function EditEventScreen({ route, navigation }) {
 }
 
 const styles = StyleSheet.create({
-  keyboardView: { flex: 1, backgroundColor: colors.background },
-  page: { flexGrow: 1, padding: 20, backgroundColor: colors.background },
-  shell: { width: '100%', maxWidth: 760, alignSelf: 'center' },
-  headerCard: { backgroundColor: colors.card, borderRadius: 28, padding: 22, borderWidth: 1, borderColor: colors.border, marginBottom: 14, shadowColor: colors.shadow, shadowOpacity: 0.1, shadowRadius: 20, shadowOffset: { width: 0, height: 12 }, elevation: 3 },
-  kicker: { color: colors.accent, fontSize: 12, fontWeight: '900', textTransform: 'uppercase', letterSpacing: 1.2 },
-  title: { marginTop: 7, color: colors.text, fontSize: 29, fontWeight: '900', lineHeight: 35, letterSpacing: -0.5 },
-  subtitle: { color: colors.muted, marginTop: 8, lineHeight: 22 },
-  formCard: { backgroundColor: colors.card, borderRadius: 28, padding: 20, borderWidth: 1, borderColor: colors.border },
-  sectionTitle: { color: colors.text, fontSize: 19, fontWeight: '900', marginBottom: 12 },
-  twoColumn: { flexDirection: 'row', gap: 12, flexWrap: 'wrap' },
-  fieldColumn: { flex: 1, minWidth: 220 },
-  helperText: { color: colors.muted, fontSize: 12, lineHeight: 18, marginTop: -4, marginBottom: 12 },
+  keyboard: { flex: 1, backgroundColor: '#FFF7FB' },
+  page: { flexGrow: 1, padding: 20, paddingBottom: 34, backgroundColor: '#FFF7FB' },
+  heroCard: {
+    borderRadius: 32,
+    padding: 22,
+    marginBottom: 18,
+    backgroundColor: '#F80678',
+    flexDirection: 'row',
+    alignItems: 'center',
+    shadowColor: '#F80678',
+    shadowOffset: { width: 0, height: 14 },
+    shadowOpacity: 0.22,
+    shadowRadius: 22,
+    elevation: 8,
+  },
+  heroIcon: { width: 58, height: 58, borderRadius: 20, backgroundColor: 'rgba(255,255,255,0.2)', alignItems: 'center', justifyContent: 'center', marginRight: 14 },
+  heroIconText: { fontSize: 28 },
+  heroCopy: { flex: 1 },
+  kicker: { color: '#FFE4F1', fontSize: 12, fontWeight: '800', letterSpacing: 1.2, textTransform: 'uppercase' },
+  title: { color: '#FFFFFF', fontSize: 27, fontWeight: '900', lineHeight: 32, marginTop: 6 },
+  subtitle: { color: '#FFEAF4', fontSize: 14, lineHeight: 21, marginTop: 8 },
+  card: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 28,
+    padding: 20,
+    borderWidth: 1,
+    borderColor: '#FCE1EE',
+    shadowColor: '#2D0A35',
+    shadowOffset: { width: 0, height: 12 },
+    shadowOpacity: 0.08,
+    shadowRadius: 22,
+    elevation: 5,
+  },
+  sectionTitle: { color: '#1F1D2B', fontSize: 20, fontWeight: '900' },
+  sectionHint: { color: '#7A7185', fontSize: 13, lineHeight: 19, marginTop: 4, marginBottom: 12 },
+  twoColumn: { flexDirection: 'row', marginHorizontal: -5 },
+  column: { flex: 1, marginHorizontal: 5 },
+  optionSection: { marginTop: 12, marginBottom: 8 },
+  label: { color: '#1F1D2B', fontSize: 14, fontWeight: '800', marginBottom: 10 },
+  optionRow: { flexDirection: 'row', flexWrap: 'wrap' },
+  optionChip: { paddingHorizontal: 14, paddingVertical: 10, borderRadius: 16, backgroundColor: '#FFF2F8', borderWidth: 1, borderColor: '#F7C9DC', marginRight: 8, marginBottom: 8 },
+  optionChipSelected: { backgroundColor: '#F80678', borderColor: '#F80678' },
+  optionText: { color: '#9A315F', fontSize: 13, fontWeight: '800' },
+  optionTextSelected: { color: '#FFFFFF' },
+  actions: { marginTop: 16 },
 });

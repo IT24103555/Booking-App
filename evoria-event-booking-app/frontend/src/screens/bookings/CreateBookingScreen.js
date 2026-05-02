@@ -1,19 +1,85 @@
-import React, { useEffect, useState } from 'react';
-import { Alert, View, Text, StyleSheet, ScrollView, KeyboardAvoidingView, Platform, TouchableOpacity, Image } from 'react-native';
+import React, { useEffect, useMemo, useState } from 'react';
+import {
+  Alert,
+  View,
+  Text,
+  StyleSheet,
+  ScrollView,
+  KeyboardAvoidingView,
+  Platform,
+  TouchableOpacity,
+  Image,
+  SafeAreaView,
+  TextInput,
+} from 'react-native';
 import { eventApi } from '../../api/eventApi';
 import { bookingApi } from '../../api/bookingApi';
 import { ticketTypeApi } from '../../api/ticketTypeApi';
 import { sessionAgendaApi } from '../../api/sessionAgendaApi';
 import { API_BASE_URL } from '../../config/apiConfig';
-
-const UPLOADS_BASE = API_BASE_URL && API_BASE_URL.endsWith('/api') ? API_BASE_URL.slice(0, -4) : API_BASE_URL || 'http://localhost:5000';
 import { getErrorMessage } from '../../api/apiClient';
 import AppInput from '../../components/AppInput';
-import AppButton from '../../components/AppButton';
 import ErrorMessage from '../../components/ErrorMessage';
-import { colors } from '../../constants/colors';
 import { bookingPaymentMethods } from '../../constants/status';
-import { isCardHolderName, isCardExpiryValid, isCvvValid, isLuhnValid, isMobileMoneyPhone, isPositiveInt, isRequired, normalizeDigits } from '../../utils/validators';
+import {
+  isMobileMoneyPhone,
+  isPositiveInt,
+  isRequired,
+  normalizeDigits,
+} from '../../utils/validators';
+import {
+  detectCardBrand,
+  formatCardNumber,
+  isCardExpired,
+  isLuhnValid,
+  isValidCardholderName,
+  isValidCvv,
+  isValidExpiryMonth,
+  isValidExpiryYear,
+  maskCardNumber,
+  normalizeCardNumber,
+} from '../../utils/paymentValidation';
+
+const UPLOADS_BASE = API_BASE_URL && API_BASE_URL.endsWith('/api') ? API_BASE_URL.slice(0, -4) : API_BASE_URL || 'http://localhost:5000';
+const UI = { primary: '#EC168C', purple: '#7C3AED', background: '#FFF7FC', surface: '#FFFFFF', text: '#111827', muted: '#7C7C8A', border: '#F0DDEB', softPink: '#FFE7F4' };
+const imageUrl = (image) => !image ? null : String(image).startsWith('http') ? image : encodeURI(`${UPLOADS_BASE}${image}`);
+
+function QuantityButton({ label, onPress, disabled }) {
+  return (
+    <TouchableOpacity disabled={disabled} activeOpacity={0.8} style={[styles.qtyButton, disabled && styles.qtyButtonDisabled]} onPress={onPress}>
+      <Text style={styles.qtyButtonText}>{label}</Text>
+    </TouchableOpacity>
+  );
+}
+
+function OptionChip({ label, selected, onPress }) {
+  return (
+    <TouchableOpacity onPress={onPress} style={[styles.optionChip, selected && styles.optionChipActive]}>
+      <Text style={[styles.optionChipText, selected && styles.optionChipTextActive]}>{label}</Text>
+    </TouchableOpacity>
+  );
+}
+
+function PaymentField({ label, value, onChangeText, placeholder, keyboardType, secureTextEntry, maxLength, helperText, error }) {
+  return (
+    <View style={styles.fieldBlock}>
+      <Text style={styles.fieldLabel}>{label}</Text>
+      <TextInput
+        value={value}
+        onChangeText={onChangeText}
+        placeholder={placeholder}
+        placeholderTextColor={UI.muted}
+        keyboardType={keyboardType}
+        secureTextEntry={secureTextEntry}
+        maxLength={maxLength}
+        autoCapitalize="none"
+        style={[styles.fieldInput, error && styles.fieldInputError]}
+      />
+      {helperText ? <Text style={styles.fieldHelper}>{helperText}</Text> : null}
+      {error ? <Text style={styles.fieldError}>{error}</Text> : null}
+    </View>
+  );
+}
 
 export default function CreateBookingScreen({ route, navigation }) {
   const preEventId = route?.params?.eventId || '';
@@ -35,20 +101,86 @@ export default function CreateBookingScreen({ route, navigation }) {
   const [ticketTypes, setTicketTypes] = useState([]);
   const [selectedEvent, setSelectedEvent] = useState(null);
   const [sessions, setSessions] = useState([]);
-  const [maxQuantity, setMaxQuantity] = useState(null);
   const [showEvents, setShowEvents] = useState(false);
-  const [showTickets, setShowTickets] = useState(false);
 
   const activeTicketTypes = (items) => (items || []).filter((ticket) => ticket.status === 'Active');
+  const selectedTicket = useMemo(() => ticketTypes.find((t) => t._id === ticketTypeId), [ticketTypes, ticketTypeId]);
+  const maxQuantity = selectedTicket ? Number(selectedTicket.availableQuantity || 0) : null;
+  const totalAmount = selectedTicket ? Number(selectedTicket.price || 0) * Number(quantity || 0) : 0;
+  const normalizedCardNumber = normalizeCardNumber(cardNumber);
+  const cardBrand = detectCardBrand(normalizedCardNumber);
+  const formattedCardNumber = formatCardNumber(normalizedCardNumber);
+  const cardLast4 = normalizedCardNumber.slice(-4);
+  const cvvLength = cardBrand === 'American Express' ? 4 : 3;
+
+  const cardValidationErrors = useMemo(() => {
+    if (paymentMethod !== 'Card') return [];
+
+    const errors = [];
+    const trimmedName = String(cardHolderName || '').trim();
+
+    if (!isValidCardholderName(trimmedName)) {
+      errors.push('Cardholder name can only use letters, spaces, hyphen, apostrophe, and dot.');
+    }
+
+    if (!normalizedCardNumber) {
+      errors.push('Card number is required.');
+    } else if (cardBrand === 'Visa' || cardBrand === 'Mastercard') {
+      if (normalizedCardNumber.length !== 16) {
+        errors.push('Visa and Mastercard numbers must contain 16 digits.');
+      }
+    } else if (cardBrand === 'American Express') {
+      if (normalizedCardNumber.length !== 15) {
+        errors.push('American Express numbers must contain 15 digits.');
+      }
+    } else if (normalizedCardNumber.length < 13 || normalizedCardNumber.length > 19) {
+      errors.push('Card number must contain 13 to 19 digits.');
+    }
+
+    if (normalizedCardNumber && !isLuhnValid(normalizedCardNumber)) {
+      errors.push('Card number failed the Luhn check.');
+    }
+
+    if (!isValidExpiryMonth(cardExpiryMonth)) {
+      errors.push('Expiry month must be between 01 and 12.');
+    }
+
+    if (!isValidExpiryYear(cardExpiryYear)) {
+      errors.push('Expiry year must be the current year or a future year.');
+    }
+
+    if (isValidExpiryMonth(cardExpiryMonth) && isValidExpiryYear(cardExpiryYear) && isCardExpired(cardExpiryMonth, cardExpiryYear)) {
+      errors.push('Card expiry date has passed.');
+    }
+
+    if (!isValidCvv(cardCvv, cardBrand)) {
+      errors.push(`CVV must be ${cvvLength} digits for ${cardBrand === 'American Express' ? 'American Express' : 'this card'}.`);
+    }
+
+    return errors;
+  }, [cardBrand, cardCvv, cardExpiryMonth, cardExpiryYear, cardHolderName, normalizedCardNumber, paymentMethod, cvvLength]);
+
+  const mobileMoneyValid = useMemo(() => {
+    if (paymentMethod !== 'Mobile Money') return true;
+    return isRequired(mobileMoneyProvider) && isMobileMoneyPhone(mobileMoneyPhone);
+  }, [mobileMoneyPhone, mobileMoneyProvider, paymentMethod]);
+
+  const bookingBasicsValid = useMemo(() => {
+    if (!isRequired(eventId)) return false;
+    if (!isRequired(ticketTypeId)) return false;
+    if (!bookableEventIds.includes(eventId)) return false;
+    if (!ticketTypes.some((ticket) => ticket._id === ticketTypeId)) return false;
+    if (!isPositiveInt(quantity)) return false;
+    if (maxQuantity != null && Number(quantity) > maxQuantity) return false;
+    return true;
+  }, [bookableEventIds, eventId, maxQuantity, quantity, ticketTypes, ticketTypeId]);
+
+  const canConfirmBooking = bookingBasicsValid && (paymentMethod === 'Card' ? cardValidationErrors.length === 0 : mobileMoneyValid);
 
   useEffect(() => {
     const load = async () => {
       try {
-        const [eventRes, ticketRes] = await Promise.all([
-          eventApi.getAll(),
-          ticketTypeApi.getAll(),
-        ]);
-
+        const [eventRes, ticketRes] = await Promise.all([eventApi.getAll(), ticketTypeApi.getAll()]);
         const allEvents = eventRes.data || [];
         const allTicketTypes = ticketRes.data || [];
         const activeBookableIds = Array.from(new Set(
@@ -57,27 +189,47 @@ export default function CreateBookingScreen({ route, navigation }) {
             .map((ticket) => (typeof ticket.eventId === 'object' ? ticket.eventId?._id : ticket.eventId))
             .filter(Boolean)
         ));
-
         setBookableEventIds(activeBookableIds);
         setEvents(allEvents.filter((event) => activeBookableIds.includes(event._id)));
 
         if (preEventId) {
           const ev = allEvents.find((e) => e._id === preEventId);
-          if (ev) {
-            setSelectedEvent(ev);
-            const ticketRes = await ticketTypeApi.getAll({ eventId: ev._id });
-            setTicketTypes(activeTicketTypes(ticketRes.data));
-            if (!activeBookableIds.includes(ev._id)) {
-              setError('This event has no active ticket types available for booking.');
-            }
-          }
+          if (ev) await selectEvent(ev, activeBookableIds);
         }
       } catch (e) {
-        // ignore - keep empty list
+        setEvents([]);
       }
     };
     load();
   }, [preEventId]);
+
+  const selectEvent = async (event, activeIds = bookableEventIds) => {
+    setSelectedEvent(event);
+    setEventId(event._id);
+    setTicketTypeId('');
+    setQuantity('1');
+    setShowEvents(false);
+    try {
+      const [ticketRes, sessionRes] = await Promise.all([
+        ticketTypeApi.getAll({ eventId: event._id }),
+        sessionAgendaApi.getByEvent ? sessionAgendaApi.getByEvent(event._id) : Promise.resolve({ data: [] }),
+      ]);
+      const activeTickets = activeTicketTypes(ticketRes.data);
+      setTicketTypes(activeTickets);
+      setSessions(sessionRes.data || []);
+      if (!activeIds.includes(event._id) || activeTickets.length === 0) setError('This event has no active ticket types available for booking.');
+      else setError('');
+    } catch (e) {
+      setTicketTypes([]);
+      setSessions([]);
+    }
+  };
+
+  const changeQuantity = (next) => {
+    const safe = Math.max(1, Number(next || 1));
+    const limited = maxQuantity != null ? Math.min(safe, maxQuantity) : safe;
+    setQuantity(String(limited));
+  };
 
   const onSave = async () => {
     setError('');
@@ -90,292 +242,295 @@ export default function CreateBookingScreen({ route, navigation }) {
 
     let paymentDetails = undefined;
     if (paymentMethod === 'Card') {
-      const sanitizedCardNumber = normalizeDigits(cardNumber);
-      const sanitizedCvv = normalizeDigits(cardCvv);
-      if (!isCardHolderName(cardHolderName)) return setError('Cardholder name must use letters and common punctuation only.');
-      if (!/^\d{13,19}$/.test(sanitizedCardNumber)) return setError('Card number must contain 13 to 19 digits.');
-      if (!isLuhnValid(sanitizedCardNumber)) return setError('Card number is invalid.');
-      if (!isCardExpiryValid(cardExpiryMonth, cardExpiryYear)) return setError('Card expiry date must be valid and not expired.');
-      if (!isCvvValid(sanitizedCvv, sanitizedCardNumber)) return setError('CVV is invalid for the selected card.');
+      if (cardValidationErrors.length) {
+        return setError(cardValidationErrors[0]);
+      }
+
+      // Only send masked card metadata to the backend for the demo booking flow.
       paymentDetails = {
-        cardHolderName: cardHolderName.trim(),
-        cardNumber: sanitizedCardNumber,
+        cardBrand,
+        last4: cardLast4,
         expiryMonth: cardExpiryMonth,
         expiryYear: cardExpiryYear,
-        cvv: sanitizedCvv,
       };
     }
-
     if (paymentMethod === 'Mobile Money') {
       if (!isRequired(mobileMoneyProvider)) return setError('Mobile money provider is required.');
-      if (!isMobileMoneyPhone(mobileMoneyPhone)) {
-        return setError('Mobile money phone number must contain 7 to 15 digits.');
-      }
-      paymentDetails = {
-        provider: mobileMoneyProvider.trim(),
-        phoneNumber: String(mobileMoneyPhone).trim(),
-      };
+      if (!isMobileMoneyPhone(mobileMoneyPhone)) return setError('Mobile money phone number must contain 7 to 15 digits.');
+      paymentDetails = { provider: mobileMoneyProvider.trim(), phoneNumber: String(mobileMoneyPhone).trim() };
     }
 
     try {
       setSaving(true);
-      const res = await bookingApi.create({
-        eventId: eventId.trim(),
-        ticketTypeId: ticketTypeId.trim(),
-        quantity: Number(quantity),
-        paymentMethod,
-        ...(paymentDetails ? { paymentDetails } : {}),
-      });
+      const res = await bookingApi.create({ eventId: eventId.trim(), ticketTypeId: ticketTypeId.trim(), quantity: Number(quantity), paymentMethod, ...(paymentDetails ? { paymentDetails } : {}) });
       Alert.alert('Success', 'Booking created and payment processed');
       navigation.replace('BookingDetails', { id: res.data._id });
     } catch (e) {
       setError(getErrorMessage(e));
     } finally {
       setSaving(false);
+      setCardCvv('');
     }
   };
 
+  const uri = imageUrl(selectedEvent?.image);
+  const paymentOptions = bookingPaymentMethods?.length ? bookingPaymentMethods : ['Pay at Venue', 'Card', 'Mobile Money'];
+
   return (
-    <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={styles.keyboardView}>
-      <ScrollView contentContainerStyle={styles.page} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
-        <View style={styles.shell}>
-          <View style={styles.hero}>
-            <Text style={styles.kicker}>Reserve tickets</Text>
-            <Text style={styles.title}>Create a new booking</Text>
-            <Text style={styles.subtitle}>Choose the event reference, ticket type, and quantity to confirm a reservation.</Text>
-          </View>
+    <SafeAreaView style={styles.safeArea}>
+      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={styles.keyboardView}>
+        <View style={styles.screen}>
+          <ScrollView contentContainerStyle={styles.page} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+            <View style={styles.headerRow}>
+              <TouchableOpacity style={styles.backButton} onPress={() => navigation.goBack()}><Text style={styles.backText}>‹</Text></TouchableOpacity>
+              <Text style={styles.headerTitle}>Create Booking</Text>
+              <View style={styles.backPlaceholder} />
+            </View>
 
-          <View style={styles.formCard}>
-            <Text style={styles.sectionTitle}>Booking information</Text>
             <ErrorMessage message={error} />
-            <View style={styles.selectorCard}>
-              <Text style={styles.selectorLabel}>Event</Text>
-              <TouchableOpacity activeOpacity={0.85} onPress={() => setShowEvents((s) => !s)} style={styles.selectorBox}>
-                <Text style={styles.selectorText}>{events.find((e) => e._id === eventId)?.title || 'Select event / MongoDB ObjectId'}</Text>
-              </TouchableOpacity>
-              {showEvents && (
-                <View style={styles.listBox}>
-                  {events.map((e) => (
-                    <TouchableOpacity key={e._id} style={styles.eventListItem} onPress={async () => {
-                      try {
-                        setShowEvents(false);
-                        setShowTickets(false);
-                        setTicketTypeId('');
-                        setEventId(e._id);
-                        // fetch full event detail (populated ticket types & venue)
-                        const detail = await eventApi.getById(e._id);
-                        const ev = detail.data || e;
-                        setSelectedEvent(ev);
-                        const ticketRes = await ticketTypeApi.getAll({ eventId: e._id });
-                        const scopedTickets = activeTicketTypes(ticketRes.data).filter((ticket) => Number(ticket.availableQuantity) > 0);
-                        setTicketTypes(scopedTickets);
-                        if (scopedTickets.length === 0) {
-                          setError('This event has no active ticket types available for booking.');
-                        } else {
-                          setError('');
-                        }
-                        // fetch sessions for event
-                        try {
-                          const sess = await sessionAgendaApi.getByEvent(e._id);
-                          setSessions(sess.data || []);
-                        } catch (se) {
-                          setSessions([]);
-                        }
-                        setMaxQuantity(null);
-                      } catch (err) {
-                        // fallback
-                        try {
-                          const ticketRes = await ticketTypeApi.getAll({ eventId: e._id });
-                          const scopedTickets = activeTicketTypes(ticketRes.data).filter((ticket) => Number(ticket.availableQuantity) > 0);
-                          setTicketTypes(scopedTickets);
-                          if (scopedTickets.length === 0) {
-                            setError('This event has no active ticket types available for booking.');
-                          } else {
-                            setError('');
-                          }
-                        } catch (ticketErr) {
-                          setTicketTypes([]);
-                          setError('This event has no active ticket types available for booking.');
-                        }
-                        setSelectedEvent(e);
-                        setSessions([]);
-                      }
-                    }}>
-                      {e.image && (
-                        <Image 
-                          source={{ uri: encodeURI(`${UPLOADS_BASE}${e.image}`) }} 
-                          style={styles.eventListImage}
-                          resizeMode="cover"
-                          onLoad={() => console.log('Image loaded', `${UPLOADS_BASE}${e.image}`)}
-                          onError={(ev) => console.warn('Image load error', ev.nativeEvent?.error, `${UPLOADS_BASE}${e.image}`)}
-                        />
-                      )}
-                      <View style={styles.eventListContent}>
-                        <Text style={styles.listItemTitle}>{e.title}</Text>
-                          <Text style={styles.listItemMeta}>{e.venueId?.name || ''} — {e.eventDate ? String(e.eventDate).slice(0,10) : ''}</Text>
-                        <Text style={[styles.listItemMeta, { marginTop: 4 }]}>{e.description?.slice(0, 50)}...</Text>
-                      </View>
-                    </TouchableOpacity>
-                  ))}
-                </View>
-              )}
-            </View>
-            {selectedEvent && (
-              <View style={[styles.selectorCard, { marginTop: 6 }]}>
-                {selectedEvent.image && (
-                  <Image 
-                    source={{ uri: encodeURI(`${UPLOADS_BASE}${selectedEvent.image}`) }} 
-                    style={styles.selectedEventImage}
-                    resizeMode="cover"
-                    onLoad={() => console.log('Image loaded', `${UPLOADS_BASE}${selectedEvent.image}`)}
-                    onError={(ev) => console.warn('Image load error', ev.nativeEvent?.error, `${UPLOADS_BASE}${selectedEvent.image}`)}
-                  />
-                )}
-                <Text style={[styles.selectorLabel, { marginTop: selectedEvent.image ? 12 : 0 }]}>Event details</Text>
-                <Text style={{ color: colors.text, fontWeight: '700', fontSize: 16 }}>{selectedEvent.title}</Text>
-                <Text style={{ color: colors.muted, marginTop: 6, lineHeight: 20 }}>{selectedEvent.description}</Text>
-                <View style={{ marginTop: 12, paddingTop: 12, borderTopWidth: 1, borderTopColor: colors.border }}>
-                  <Text style={styles.selectorLabel}>Venue</Text>
-                  <Text style={{ color: colors.text, fontWeight: '700' }}>{selectedEvent.venueId?.name || '—'}</Text>
-                  <Text style={{ color: colors.muted, marginTop: 4 }}>{selectedEvent.venueId?.location || selectedEvent.venueId?.description || ''}</Text>
-                </View>
-                {sessions.length > 0 && (
-                  <View style={{ marginTop: 12, paddingTop: 12, borderTopWidth: 1, borderTopColor: colors.border }}>
-                    <Text style={styles.selectorLabel}>Sessions</Text>
-                    {sessions.map((s) => (
-                      <View key={s._id} style={{ marginTop: 6 }}>
-                        <Text style={{ color: colors.text, fontWeight: '700' }}>{s.title}</Text>
-                        <Text style={{ color: colors.muted, fontSize: 12 }}>{s.startTime ? `${s.startTime} — ${s.endTime || ''}` : s.description}</Text>
-                      </View>
-                    ))}
-                  </View>
-                )}
-              </View>
-            )}
-            <View style={styles.selectorCard}>
-              <Text style={styles.selectorLabel}>Ticket type</Text>
-              <TouchableOpacity activeOpacity={0.85} onPress={() => setShowTickets((s) => !s)} style={styles.selectorBox}>
-                <Text style={styles.selectorText}>{ticketTypes.find((t) => t._id === ticketTypeId)?.name || (eventId ? 'Select ticket type' : 'Select event first')}</Text>
-              </TouchableOpacity>
-              {showTickets && (
-                <View style={styles.listBox}>
-                  {ticketTypes.map((t) => (
-                    <TouchableOpacity key={t._id} style={styles.listItem} onPress={() => { setTicketTypeId(t._id); setShowTickets(false); setMaxQuantity(typeof t.availableQuantity === 'number' ? t.availableQuantity : null); setQuantity('1'); }}>
-                      <Text style={styles.listItemTitle}>{t.name}</Text>
-                      <Text style={styles.listItemMeta}>{t.price ? `Price ${t.price}` : ''} {t.availableQuantity != null ? ` — ${t.availableQuantity} available` : ''}</Text>
-                    </TouchableOpacity>
-                  ))}
-                  {ticketTypes.length === 0 && (
-                    <View style={styles.emptyListItem}>
-                      <Text style={styles.emptyListText}>No active ticket types available for this event.</Text>
-                    </View>
-                  )}
-                </View>
-              )}
-            </View>
-            {maxQuantity != null && (
-              <View style={{ marginBottom: 12 }}>
-                <Text style={{ color: colors.muted, fontSize: 13 }}>Available: {maxQuantity}</Text>
-              </View>
-            )}
 
-            <View style={styles.selectorCard}>
-              <Text style={styles.selectorLabel}>Payment method</Text>
-              <Text style={styles.paymentHint}>Choose how the customer will pay and enter the required payment details below.</Text>
-              <View style={styles.paymentOptions}>
-                {bookingPaymentMethods.map((method) => (
-                  <TouchableOpacity
-                    key={method}
-                    activeOpacity={0.85}
-                    onPress={() => setPaymentMethod(method)}
-                    style={[styles.paymentChip, paymentMethod === method && styles.paymentChipActive]}
-                  >
-                    <Text style={[styles.paymentChipText, paymentMethod === method && styles.paymentChipTextActive]}>{method}</Text>
+            <View style={styles.eventSelectorCard}>
+              <Text style={styles.sectionTitle}>Select Event</Text>
+              <TouchableOpacity activeOpacity={0.85} onPress={() => setShowEvents((s) => !s)} style={styles.selectorBox}>
+                <Text style={[styles.selectorText, !selectedEvent && styles.placeholderText]}>{selectedEvent?.title || 'Choose available event'}</Text>
+                <Text style={styles.selectorArrow}>{showEvents ? '⌃' : '⌄'}</Text>
+              </TouchableOpacity>
+              {showEvents ? (
+                <View style={styles.dropdownList}>
+                  {events.map((ev) => (
+                    <TouchableOpacity key={ev._id} style={styles.dropdownItem} onPress={() => selectEvent(ev)}>
+                      <Text style={styles.dropdownTitle}>{ev.title}</Text>
+                      <Text style={styles.dropdownMeta}>{String(ev.eventDate || '').slice(0, 10)} · {ev.venueId?.name || 'Venue TBA'}</Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              ) : null}
+            </View>
+
+            {selectedEvent ? (
+              <View style={styles.selectedEventCard}>
+                {uri ? <Image source={{ uri }} style={styles.eventImage} /> : <View style={[styles.eventImage, styles.placeholder]}><Text style={styles.placeholderIcon}>🎫</Text></View>}
+                <View style={styles.eventInfo}>
+                  <Text style={styles.eventTitle}>{selectedEvent.title}</Text>
+                  <Text style={styles.eventMeta}>{String(selectedEvent.eventDate || '').slice(0, 10)} · {selectedEvent.startTime || '--:--'}</Text>
+                  <Text style={styles.eventMeta}>{selectedEvent.venueId?.name || 'Venue TBA'}</Text>
+                </View>
+              </View>
+            ) : null}
+
+            <View style={styles.card}>
+              <Text style={styles.sectionTitle}>Select Ticket Type</Text>
+              {ticketTypes.length === 0 ? <Text style={styles.helperText}>Select an event to view available ticket types.</Text> : null}
+              {ticketTypes.map((ticket) => {
+                const selected = ticket._id === ticketTypeId;
+                return (
+                  <TouchableOpacity key={ticket._id} style={[styles.ticketCard, selected && styles.ticketCardActive]} onPress={() => { setTicketTypeId(ticket._id); changeQuantity(1); }}>
+                    <View style={styles.ticketInfo}>
+                      <Text style={styles.ticketName}>{ticket.name}</Text>
+                      <Text style={styles.ticketDesc}>{ticket.description || 'Access to event activities.'}</Text>
+                      <Text style={styles.ticketPrice}>NPR {Number(ticket.price || 0).toFixed(0)}</Text>
+                      <Text style={styles.ticketAvailable}>{ticket.availableQuantity} available</Text>
+                    </View>
+                    <View style={styles.quantityControls}>
+                      <QuantityButton label="−" disabled={!selected || Number(quantity) <= 1} onPress={() => changeQuantity(Number(quantity) - 1)} />
+                      <Text style={styles.quantityText}>{selected ? quantity : 0}</Text>
+                      <QuantityButton label="＋" disabled={!selected || (maxQuantity != null && Number(quantity) >= maxQuantity)} onPress={() => changeQuantity(Number(quantity) + 1)} />
+                    </View>
                   </TouchableOpacity>
+                );
+              })}
+            </View>
+
+            {sessions.length ? (
+              <View style={styles.card}>
+                <Text style={styles.sectionTitle}>Event Agenda</Text>
+                {sessions.slice(0, 3).map((s) => (
+                  <View key={s._id || s.title} style={styles.sessionRow}>
+                    <Text style={styles.sessionTime}>{s.startTime || '--:--'}</Text>
+                    <View style={styles.sessionContent}>
+                      <Text style={styles.sessionTitle}>{s.title}</Text>
+                      <Text style={styles.sessionSpeaker}>{s.speaker || 'Speaker TBA'}</Text>
+                    </View>
+                  </View>
                 ))}
               </View>
-              <Text style={styles.paymentSummary}>Selected: {paymentMethod}</Text>
-            </View>
+            ) : null}
 
-            {paymentMethod === 'Card' && (
-              <View style={styles.selectorCard}>
-                <Text style={styles.selectorLabel}>Card details</Text>
-                <Text style={styles.paymentHint}>Card data is validated and only safe payment metadata is stored.</Text>
-                <AppInput label="Cardholder name" value={cardHolderName} onChangeText={setCardHolderName} placeholder="Name on card" />
-                <AppInput label="Card number" value={cardNumber} onChangeText={setCardNumber} placeholder="1234 5678 9012 3456" keyboardType="numeric" />
-                <View style={styles.twoColumn}>
-                  <View style={styles.fieldColumn}><AppInput label="Expiry month" value={cardExpiryMonth} onChangeText={setCardExpiryMonth} placeholder="MM" keyboardType="numeric" maxLength={2} /></View>
-                  <View style={styles.fieldColumn}><AppInput label="Expiry year" value={cardExpiryYear} onChangeText={setCardExpiryYear} placeholder="YY or YYYY" keyboardType="numeric" maxLength={4} /></View>
+            <View style={styles.card}>
+              <Text style={styles.sectionTitle}>Payment Method</Text>
+              <View style={styles.optionRow}>
+                {paymentOptions.map((method) => <OptionChip key={method} label={method} selected={paymentMethod === method} onPress={() => setPaymentMethod(method)} />)}
+              </View>
+              {paymentMethod === 'Card' ? (
+                <View style={styles.paymentFields}>
+                  <View style={styles.cardSummaryCard}>
+                    <Text style={styles.cardSummaryLabel}>Detected Card Type</Text>
+                    <View style={styles.cardSummaryRow}>
+                      <Text style={styles.cardSummaryValue}>{cardBrand}</Text>
+                      <Text style={styles.cardSummaryMasked}>{maskCardNumber(normalizedCardNumber)}</Text>
+                    </View>
+                    <Text style={styles.cardSummaryHint}>We only send masked card details to the backend.</Text>
+                  </View>
+
+                  <PaymentField
+                    label="Cardholder Name"
+                    value={cardHolderName}
+                    onChangeText={setCardHolderName}
+                    placeholder="Name on card"
+                    error={paymentMethod === 'Card' && !isValidCardholderName(cardHolderName) ? 'Use letters, spaces, hyphen, apostrophe, or dot only.' : ''}
+                  />
+                  <PaymentField
+                    label="Card Number"
+                    value={formattedCardNumber}
+                    onChangeText={(value) => {
+                      const digits = normalizeCardNumber(value);
+                      const brand = detectCardBrand(digits);
+                      const limit = brand === 'American Express' ? 15 : brand === 'Visa' || brand === 'Mastercard' ? 16 : 19;
+                      setCardNumber(digits.slice(0, limit));
+                    }}
+                    placeholder="1234 5678 9012 3456"
+                    keyboardType="number-pad"
+                    helperText={`Visa/Mastercard: 16 digits · American Express: 15 digits`}
+                  />
+                  <Text style={styles.brandText}>Detected brand: {cardBrand}</Text>
+                  <View style={styles.rowFields}>
+                    <View style={styles.flexField}>
+                      <PaymentField
+                        label="MM"
+                        value={cardExpiryMonth}
+                        onChangeText={(value) => setCardExpiryMonth(normalizeDigits(value).slice(0, 2))}
+                        placeholder="MM"
+                        keyboardType="number-pad"
+                        maxLength={2}
+                      />
+                    </View>
+                    <View style={styles.flexField}>
+                      <PaymentField
+                        label="YYYY"
+                        value={cardExpiryYear}
+                        onChangeText={(value) => setCardExpiryYear(normalizeDigits(value).slice(0, 4))}
+                        placeholder="YYYY"
+                        keyboardType="number-pad"
+                        maxLength={4}
+                      />
+                    </View>
+                    <View style={styles.flexField}>
+                      <PaymentField
+                        label="CVV"
+                        value={cardCvv}
+                        onChangeText={(value) => setCardCvv(normalizeDigits(value).slice(0, cvvLength))}
+                        placeholder="CVV"
+                        keyboardType="number-pad"
+                        secureTextEntry
+                        maxLength={cvvLength}
+                        helperText={`Use ${cvvLength} digits for ${cardBrand === 'American Express' ? 'American Express' : 'Visa/Mastercard'}.`}
+                      />
+                    </View>
+                  </View>
+                  {cardValidationErrors.length ? (
+                    <View style={styles.validationBox}>
+                      {cardValidationErrors.map((message) => <Text key={message} style={styles.validationText}>• {message}</Text>)}
+                    </View>
+                  ) : null}
                 </View>
-                <AppInput label="CVV" value={cardCvv} onChangeText={setCardCvv} placeholder="123" keyboardType="numeric" maxLength={4} />
-              </View>
-            )}
+              ) : null}
+              {paymentMethod === 'Mobile Money' ? (
+                <View style={styles.paymentFields}>
+                  <AppInput label="Provider" value={mobileMoneyProvider} onChangeText={setMobileMoneyProvider} placeholder="Provider" />
+                  <AppInput label="Phone Number" value={mobileMoneyPhone} onChangeText={setMobileMoneyPhone} placeholder="Mobile money number" keyboardType="phone-pad" />
+                </View>
+              ) : null}
+            </View>
+          </ScrollView>
 
-            {paymentMethod === 'Mobile Money' && (
-              <View style={styles.selectorCard}>
-                <Text style={styles.selectorLabel}>Mobile money details</Text>
-                <Text style={styles.paymentHint}>Enter the provider and phone number used for the wallet payment.</Text>
-                <AppInput label="Provider" value={mobileMoneyProvider} onChangeText={setMobileMoneyProvider} placeholder="MTN MoMo / Airtel Money / Vodafone Cash" />
-                <AppInput label="Phone number" value={mobileMoneyPhone} onChangeText={setMobileMoneyPhone} placeholder="+256700000000" keyboardType="phone-pad" />
-              </View>
-            )}
-
-            {paymentMethod === 'Pay at Venue' && (
-              <View style={styles.selectorCard}>
-                <Text style={styles.selectorLabel}>Pay at venue</Text>
-                <Text style={styles.paymentHint}>No card details required. The booking will be created with payment pending at the venue.</Text>
-              </View>
-            )}
-
-            <AppInput label="Quantity" value={quantity} onChangeText={(val) => {
-              const digits = String(val).replace(/[^0-9]/g, '');
-              if (digits === '') return setQuantity('');
-              let n = parseInt(digits, 10) || 0;
-              if (maxQuantity != null && n > maxQuantity) n = maxQuantity;
-              if (n < 1) n = 1;
-              setQuantity(String(n));
-            }} placeholder="1" keyboardType="numeric" />
-            <Text style={styles.helperText}>Payment details are required only for card and mobile money bookings.</Text>
-            <AppButton title={saving ? 'Processing payment...' : paymentMethod === 'Card' ? 'Pay & Book' : paymentMethod === 'Mobile Money' ? 'Book & Pay' : 'Create booking'} onPress={onSave} disabled={saving || !eventId || ticketTypes.length === 0} />
+          <View style={styles.bottomBar}>
+            <View>
+              <Text style={styles.totalLabel}>Total Amount</Text>
+              <Text style={styles.totalValue}>NPR {Number(totalAmount || 0).toFixed(0)}</Text>
+            </View>
+            <TouchableOpacity style={[styles.confirmButton, (saving || !canConfirmBooking) && styles.confirmButtonDisabled]} disabled={saving || !canConfirmBooking} onPress={onSave}>
+              <Text style={styles.confirmButtonText}>{saving ? 'Confirming...' : 'Confirm Booking'}</Text>
+            </TouchableOpacity>
           </View>
         </View>
-      </ScrollView>
-    </KeyboardAvoidingView>
+      </KeyboardAvoidingView>
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  keyboardView: { flex: 1, backgroundColor: colors.background },
-  page: { flexGrow: 1, padding: 20, backgroundColor: colors.background },
-  shell: { width: '100%', maxWidth: 720, alignSelf: 'center' },
-  hero: { backgroundColor: colors.primary, borderRadius: 30, padding: 24, marginBottom: 14, shadowColor: colors.shadow, shadowOpacity: 0.16, shadowRadius: 24, shadowOffset: { width: 0, height: 14 }, elevation: 4 },
-  kicker: { color: '#fff', opacity: 0.82, fontSize: 12, fontWeight: '900', textTransform: 'uppercase', letterSpacing: 1.2 },
-  title: { color: '#fff', fontSize: 31, fontWeight: '900', marginTop: 7, letterSpacing: -0.5 },
-  subtitle: { color: '#fff', opacity: 0.86, marginTop: 10, lineHeight: 22 },
-  formCard: { backgroundColor: colors.card, borderRadius: 28, padding: 20, borderWidth: 1, borderColor: colors.border },
-  sectionTitle: { color: colors.text, fontSize: 19, fontWeight: '900', marginBottom: 12 },
-  selectorCard: { backgroundColor: colors.background, borderRadius: 22, padding: 14, borderWidth: 1, borderColor: colors.border, marginBottom: 12 },
-  selectorLabel: { color: colors.text, fontSize: 15, fontWeight: '900', marginBottom: 2 },
-  selectorBox: { borderWidth: 1, borderColor: colors.border, borderRadius: 12, padding: 12, backgroundColor: '#fff' },
-  selectorText: { color: colors.muted },
-  listBox: { borderWidth: 1, borderColor: colors.border, borderRadius: 12, marginTop: 8, backgroundColor: '#fff', maxHeight: 400, overflow: 'scroll' },
-  listItem: { padding: 12, borderBottomWidth: 1, borderBottomColor: colors.border },
-  eventListItem: { overflow: 'hidden', marginBottom: 1, borderBottomWidth: 1, borderBottomColor: colors.border },
-  eventListImage: { width: '100%', height: 140, backgroundColor: colors.background },
-  eventListContent: { padding: 12 },
-  selectedEventImage: { width: '100%', height: 240, borderRadius: 16, marginBottom: 12 },
-  listItemTitle: { fontWeight: '700', color: colors.text },
-  listItemMeta: { color: colors.muted, fontSize: 12, marginTop: 4 },
-  emptyListItem: { padding: 12 },
-  emptyListText: { color: colors.muted, fontSize: 12 },
-  helperText: { color: colors.muted, fontSize: 12, lineHeight: 18, marginTop: -4, marginBottom: 12 },
-  paymentHint: { color: colors.muted, fontSize: 12, lineHeight: 18, marginBottom: 10 },
-  paymentOptions: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginBottom: 10 },
-  paymentChip: { paddingVertical: 10, paddingHorizontal: 12, borderRadius: 999, borderWidth: 1.5, borderColor: colors.border, backgroundColor: '#fff' },
-  paymentChipActive: { borderColor: colors.primary, backgroundColor: colors.primary },
-  paymentChipText: { color: colors.text, fontWeight: '800', fontSize: 12 },
-  paymentChipTextActive: { color: '#fff' },
-  paymentSummary: { color: colors.primary, fontWeight: '800', fontSize: 12 },
-  twoColumn: { flexDirection: 'row', gap: 10 },
-  fieldColumn: { flex: 1 },
+  safeArea: { flex: 1, backgroundColor: UI.background },
+  keyboardView: { flex: 1 },
+  screen: { flex: 1, backgroundColor: UI.background },
+  page: { padding: 18, paddingBottom: 120 },
+  headerRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 },
+  backButton: { width: 40, height: 40, borderRadius: 14, backgroundColor: '#fff', alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: UI.border },
+  backText: { color: UI.text, fontSize: 28, lineHeight: 28, fontWeight: '900' },
+  backPlaceholder: { width: 40, height: 40 },
+  headerTitle: { color: UI.text, fontWeight: '900', fontSize: 17 },
+  card: { backgroundColor: '#fff', borderRadius: 24, padding: 16, borderWidth: 1, borderColor: UI.border, marginTop: 14, shadowColor: '#9D174D', shadowOffset: { width: 0, height: 10 }, shadowOpacity: 0.06, shadowRadius: 18, elevation: 5 },
+  eventSelectorCard: { backgroundColor: '#fff', borderRadius: 24, padding: 16, borderWidth: 1, borderColor: UI.border },
+  sectionTitle: { color: UI.text, fontSize: 17, fontWeight: '900', marginBottom: 12 },
+  selectorBox: { height: 54, borderRadius: 18, backgroundColor: '#FFF8FC', borderWidth: 1, borderColor: UI.border, paddingHorizontal: 14, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  selectorText: { color: UI.text, fontWeight: '800', flex: 1 },
+  placeholderText: { color: UI.muted },
+  selectorArrow: { color: UI.primary, fontSize: 22, fontWeight: '900' },
+  dropdownList: { marginTop: 10, borderRadius: 18, borderWidth: 1, borderColor: UI.border, overflow: 'hidden' },
+  dropdownItem: { padding: 13, borderBottomWidth: 1, borderBottomColor: '#F7E8F2', backgroundColor: '#fff' },
+  dropdownTitle: { color: UI.text, fontWeight: '900' },
+  dropdownMeta: { color: UI.muted, fontSize: 12, fontWeight: '700', marginTop: 4 },
+  selectedEventCard: { flexDirection: 'row', backgroundColor: '#fff', borderRadius: 24, padding: 12, borderWidth: 1, borderColor: UI.border, marginTop: 14 },
+  eventImage: { width: 86, height: 86, borderRadius: 18, backgroundColor: UI.softPink },
+  placeholder: { alignItems: 'center', justifyContent: 'center' },
+  placeholderIcon: { fontSize: 26 },
+  eventInfo: { flex: 1, paddingLeft: 13, justifyContent: 'center' },
+  eventTitle: { color: UI.text, fontWeight: '900', fontSize: 15, lineHeight: 20 },
+  eventMeta: { color: UI.muted, fontSize: 12, fontWeight: '700', marginTop: 5 },
+  helperText: { color: UI.muted, fontWeight: '700', lineHeight: 20 },
+  ticketCard: { borderWidth: 1.5, borderColor: UI.border, backgroundColor: '#fff', borderRadius: 20, padding: 14, marginBottom: 12, flexDirection: 'row', justifyContent: 'space-between', gap: 12 },
+  ticketCardActive: { borderColor: UI.primary, backgroundColor: '#FFF6FB' },
+  ticketInfo: { flex: 1 },
+  ticketName: { color: UI.text, fontSize: 15, fontWeight: '900' },
+  ticketDesc: { color: UI.muted, fontSize: 12, lineHeight: 18, marginTop: 5 },
+  ticketPrice: { color: UI.primary, fontSize: 13, fontWeight: '900', marginTop: 8 },
+  ticketAvailable: { color: UI.muted, fontSize: 11, fontWeight: '700', marginTop: 3 },
+  quantityControls: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  qtyButton: { width: 30, height: 30, borderRadius: 10, borderWidth: 1, borderColor: UI.primary, alignItems: 'center', justifyContent: 'center', backgroundColor: '#fff' },
+  qtyButtonDisabled: { opacity: 0.35 },
+  qtyButtonText: { color: UI.primary, fontWeight: '900', fontSize: 15 },
+  quantityText: { minWidth: 24, textAlign: 'center', color: UI.text, fontWeight: '900' },
+  sessionRow: { flexDirection: 'row', gap: 12, paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: '#F7E8F2' },
+  sessionTime: { color: UI.primary, fontWeight: '900', width: 54 },
+  sessionContent: { flex: 1 },
+  sessionTitle: { color: UI.text, fontWeight: '900' },
+  sessionSpeaker: { color: UI.muted, fontSize: 12, marginTop: 4, fontWeight: '700' },
+  optionRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  optionChip: { paddingHorizontal: 12, paddingVertical: 9, backgroundColor: '#FFF8FC', borderRadius: 999, borderWidth: 1, borderColor: UI.border },
+  optionChipActive: { backgroundColor: UI.primary, borderColor: UI.primary },
+  optionChipText: { color: UI.text, fontWeight: '800', fontSize: 12 },
+  optionChipTextActive: { color: '#fff' },
+  paymentFields: { marginTop: 14 },
+  cardSummaryCard: { backgroundColor: '#FFF8FC', borderWidth: 1, borderColor: UI.border, borderRadius: 18, padding: 14, marginBottom: 14 },
+  cardSummaryLabel: { color: UI.muted, fontSize: 11, fontWeight: '800', textTransform: 'uppercase', letterSpacing: 0.4 },
+  cardSummaryRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 8, gap: 12 },
+  cardSummaryValue: { color: UI.text, fontSize: 16, fontWeight: '900', flex: 1 },
+  cardSummaryMasked: { color: UI.primary, fontSize: 13, fontWeight: '900' },
+  cardSummaryHint: { color: UI.muted, fontSize: 11, fontWeight: '700', marginTop: 8, lineHeight: 16 },
+  brandText: { color: UI.primary, fontSize: 12, fontWeight: '900', marginTop: 6, marginBottom: 6 },
+  fieldBlock: { marginBottom: 12 },
+  fieldLabel: { marginBottom: 8, color: UI.text, fontWeight: '800', fontSize: 13 },
+  fieldInput: { backgroundColor: '#fff', borderWidth: 1, borderColor: UI.border, borderRadius: 18, paddingHorizontal: 14, paddingVertical: 14, color: UI.text, shadowColor: '#9D174D', shadowOpacity: 0.08, shadowRadius: 12, shadowOffset: { width: 0, height: 6 }, elevation: 2 },
+  fieldInputError: { borderColor: '#EF4444' },
+  fieldHelper: { color: UI.muted, fontSize: 11, fontWeight: '700', marginTop: 6, lineHeight: 16 },
+  fieldError: { color: '#EF4444', fontSize: 11, fontWeight: '800', marginTop: 6, lineHeight: 16 },
+  validationBox: { marginTop: 4, padding: 12, borderRadius: 16, backgroundColor: '#FFF1F5', borderWidth: 1, borderColor: '#F8B4D9' },
+  validationText: { color: '#9D174D', fontSize: 12, fontWeight: '700', lineHeight: 18 },
+  rowFields: { flexDirection: 'row', gap: 8 },
+  flexField: { flex: 1 },
+  bottomBar: { position: 'absolute', left: 0, right: 0, bottom: 0, backgroundColor: '#fff', borderTopWidth: 1, borderTopColor: UI.border, paddingHorizontal: 18, paddingTop: 13, paddingBottom: 24, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 14 },
+  totalLabel: { color: UI.muted, fontSize: 12, fontWeight: '800' },
+  totalValue: { color: UI.primary, fontSize: 18, fontWeight: '900', marginTop: 3 },
+  confirmButton: { flex: 1, backgroundColor: UI.primary, height: 54, borderRadius: 18, alignItems: 'center', justifyContent: 'center', shadowColor: UI.primary, shadowOffset: { width: 0, height: 10 }, shadowOpacity: 0.25, shadowRadius: 16, elevation: 8 },
+  confirmButtonDisabled: { opacity: 0.55 },
+  confirmButtonText: { color: '#fff', fontWeight: '900', fontSize: 15 },
 });

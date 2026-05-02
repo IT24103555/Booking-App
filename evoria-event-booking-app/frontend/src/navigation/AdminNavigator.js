@@ -23,7 +23,6 @@ import EditEventScreen from '../screens/events/EditEventScreen';
 import EventDetailsScreen from '../screens/events/EventDetailsScreen';
 
 import BookingListScreen from '../screens/bookings/BookingListScreen';
-import CreateBookingScreen from '../screens/bookings/CreateBookingScreen';
 import EditBookingScreen from '../screens/bookings/EditBookingScreen';
 import BookingDetailsScreen from '../screens/bookings/BookingDetailsScreen';
 
@@ -59,7 +58,6 @@ export default function AdminNavigator() {
       <Stack.Screen name="EventDetails" component={EventDetailsScreen} options={{ title: 'Event Details' }} />
 
       <Stack.Screen name="BookingList" component={BookingListScreen} options={{ title: 'Bookings' }} />
-      <Stack.Screen name="CreateBooking" component={CreateBookingScreen} options={{ title: 'Create Booking' }} />
       <Stack.Screen name="EditBooking" component={EditBookingScreen} options={{ title: 'Edit Booking' }} />
       <Stack.Screen name="BookingDetails" component={BookingDetailsScreen} options={{ title: 'Booking Details' }} />
 

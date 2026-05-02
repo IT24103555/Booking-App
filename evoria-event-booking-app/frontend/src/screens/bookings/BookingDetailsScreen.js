@@ -1,17 +1,26 @@
 import React, { useContext, useEffect, useState } from 'react';
-import { Alert, View, Text, StyleSheet, ScrollView, Platform } from 'react-native';
+import { Alert, View, Text, StyleSheet, ScrollView, Platform, Image, TouchableOpacity, SafeAreaView } from 'react-native';
 import { bookingApi } from '../../api/bookingApi';
 import { getErrorMessage } from '../../api/apiClient';
-import AppCard from '../../components/AppCard';
 import AppButton from '../../components/AppButton';
 import ErrorMessage from '../../components/ErrorMessage';
 import LoadingSpinner from '../../components/LoadingSpinner';
 import EmptyState from '../../components/EmptyState';
 import { confirmDialog } from '../../components/ConfirmDialog';
-import { colors } from '../../constants/colors';
 import { formatDate } from '../../utils/formatDate';
 import { AuthContext } from '../../context/AuthContext';
 import { downloadBookingReceipt } from '../../utils/bookingReceipt';
+import { API_BASE_URL } from '../../config/apiConfig';
+
+const UPLOADS_BASE = API_BASE_URL && API_BASE_URL.endsWith('/api') ? API_BASE_URL.slice(0, -4) : API_BASE_URL || 'http://localhost:5000';
+const UI = { primary: '#EC168C', purple: '#7C3AED', background: '#FFF7FC', surface: '#FFFFFF', text: '#111827', muted: '#7C7C8A', border: '#F0DDEB', softPink: '#FFE7F4' };
+const imageUrl = (image) => !image ? null : String(image).startsWith('http') ? image : encodeURI(`${UPLOADS_BASE}${image}`);
+
+function getStatusColor(status) {
+  if (status === 'Confirmed') return '#10B981';
+  if (status === 'Cancelled') return '#EF4444';
+  return '#F59E0B';
+}
 
 function DetailRow({ label, value }) {
   return (
@@ -26,7 +35,6 @@ export default function BookingDetailsScreen({ route, navigation }) {
   const { id } = route.params;
   const { user } = useContext(AuthContext);
   const isStaff = user?.role === 'admin' || user?.role === 'organizer';
-
   const [item, setItem] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -44,32 +52,38 @@ export default function BookingDetailsScreen({ route, navigation }) {
     }
   };
 
-  useEffect(() => {
-    load();
-  }, [id]);
+  useEffect(() => { load(); }, [id]);
 
-  const onConfirm = async () => {
-    if (!window.confirm('Confirm booking? This will update the booking status to Confirmed.')) return;
-    try {
-      await bookingApi.confirm(id);
-      Alert.alert('Success', 'Booking confirmed');
-      await load();
-    } catch (e) {
-      Alert.alert('Error', getErrorMessage(e));
-    }
+  const onConfirm = () => {
+    confirmDialog({
+      title: 'Confirm booking?',
+      message: 'This will update the booking status to Confirmed.',
+      onConfirm: async () => {
+        try {
+          await bookingApi.confirm(id);
+          Alert.alert('Success', 'Booking confirmed');
+          await load();
+        } catch (e) {
+          Alert.alert('Error', getErrorMessage(e));
+        }
+      },
+    });
   };
 
-  const onCancel = async () => {
-    const title = isStaff ? 'Cancel this booking?' : 'Cancel your booking?';
-    const message = 'This will mark the booking as Cancelled and restore tickets to inventory.';
-    if (!window.confirm(`${title}\n\n${message}`)) return;
-    try {
-      await bookingApi.cancel(id);
-      Alert.alert('Success', 'Booking cancelled');
-      await load();
-    } catch (e) {
-      Alert.alert('Error', getErrorMessage(e));
-    }
+  const onCancel = () => {
+    confirmDialog({
+      title: isStaff ? 'Cancel this booking?' : 'Cancel your booking?',
+      message: 'This will mark the booking as Cancelled and restore tickets to inventory.',
+      onConfirm: async () => {
+        try {
+          await bookingApi.cancel(id);
+          Alert.alert('Success', 'Booking cancelled');
+          await load();
+        } catch (e) {
+          Alert.alert('Error', getErrorMessage(e));
+        }
+      },
+    });
   };
 
   const onDownloadReceipt = () => {
@@ -79,88 +93,88 @@ export default function BookingDetailsScreen({ route, navigation }) {
     }
   };
 
-  const getStatusColor = (status) => {
-    if (status === 'Confirmed') return '#10b981'; // green
-    if (status === 'Cancelled') return '#ef4444'; // red
-    return '#f59e0b'; // yellow/amber for Pending
-  };
-
   if (loading) return <LoadingSpinner />;
+  const statusColor = getStatusColor(item?.status);
+  const uri = imageUrl(item?.eventId?.image);
 
   return (
-    <ScrollView contentContainerStyle={styles.page} showsVerticalScrollIndicator={false}>
-      <View style={styles.shell}>
-        <ErrorMessage message={error} />
-        {item ? (
-          <>
-            <View style={styles.hero}>
-              <Text style={styles.kicker}>Booking details</Text>
-              <Text style={styles.title}>Booking #{String(item._id).slice(-6).toUpperCase()}</Text>
-              <View style={[styles.statusPill, { backgroundColor: getStatusColor(item.status) + '24', borderWidth: 1.5, borderColor: getStatusColor(item.status) }]}>
-                <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: getStatusColor(item.status), marginRight: 8 }} />
-                <Text style={[styles.statusText, { color: getStatusColor(item.status) }]}>{item.status}</Text>
+    <SafeAreaView style={styles.safeArea}>
+      <View style={styles.screen}>
+        <ScrollView contentContainerStyle={styles.page} showsVerticalScrollIndicator={false}>
+          <ErrorMessage message={error} />
+          {item ? (
+            <>
+              <View style={styles.headerRow}>
+                <TouchableOpacity style={styles.backButton} onPress={() => navigation.goBack()}><Text style={styles.backText}>‹</Text></TouchableOpacity>
+                <Text style={styles.headerTitle}>Booking Details</Text>
+                <View style={styles.backPlaceholder} />
               </View>
-            </View>
 
-            <AppCard>
-              <Text style={styles.sectionTitle}>Reservation summary</Text>
-              <DetailRow label="Event" value={item.eventId?.title || item.eventId} />
-              <DetailRow label="Ticket Type" value={item.ticketTypeId?.name || item.ticketTypeId} />
-              <DetailRow label="Quantity" value={String(item.quantity)} />
-              <DetailRow label="Payment Method" value={item.paymentMethod} />
-              <DetailRow label="Payment Status" value={item.paymentStatus} />
-              <DetailRow label="Payment Reference" value={item.paymentReference} />
-              <DetailRow label="Payment Completed" value={item.paymentCompletedAt ? formatDate(item.paymentCompletedAt) : '-'} />
-              {item.paymentDetails?.cardMaskedNumber && <DetailRow label="Card Number" value={item.paymentDetails.cardMaskedNumber} />}
-              {item.paymentDetails?.cardBrand && <DetailRow label="Card Brand" value={item.paymentDetails.cardBrand} />}
-              {item.paymentDetails?.provider && <DetailRow label="Provider" value={item.paymentDetails.provider} />}
-              {item.paymentDetails?.phoneNumber && <DetailRow label="Phone Number" value={item.paymentDetails.phoneNumber} />}
-              <DetailRow label="Created" value={formatDate(item.createdAt)} />
-              <DetailRow label="Booking ID" value={item._id} />
-            </AppCard>
+              <View style={styles.statusRow}>
+                <View style={[styles.statusPill, { backgroundColor: `${statusColor}22`, borderColor: `${statusColor}66` }]}>
+                  <Text style={[styles.statusText, { color: statusColor }]}>{item.status}</Text>
+                </View>
+                <Text style={styles.bookingId}>Booking ID: #EVR{String(item._id).slice(-6).toUpperCase()}</Text>
+              </View>
 
-            <View style={styles.actionPanel}>
-              <AppButton title="Download Receipt" onPress={onDownloadReceipt} />
-              {isStaff && (
-                <>
-                  {item.status !== 'Confirmed' && item.status !== 'Cancelled' && (
-                    <AppButton title="✓ Confirm Booking" onPress={onConfirm} />
-                  )}
-                  {item.status !== 'Cancelled' && (
-                    <AppButton title="✕ Cancel Booking" variant="danger" onPress={onCancel} />
-                  )}
-                  {item.status === 'Cancelled' && (
-                    <Text style={{ color: colors.muted, textAlign: 'center', marginTop: 8 }}>Booking cancelled</Text>
-                  )}
-                </>
-              )}
-              {!isStaff && item.status !== 'Cancelled' && (
-                <AppButton title="Cancel My Booking" variant="danger" onPress={onCancel} />
-              )}
-              {!isStaff && item.status === 'Cancelled' && (
-                <Text style={{ color: colors.muted, textAlign: 'center', marginTop: 12 }}>Your booking has been cancelled</Text>
-              )}
-            </View>
-          </>
-        ) : (
-          <EmptyState title="Booking not found" actionTitle="Reload" onAction={load} />
-        )}
+              <View style={styles.eventCard}>
+                {uri ? <Image source={{ uri }} style={styles.eventImage} /> : <View style={[styles.eventImage, styles.placeholder]}><Text style={styles.placeholderIcon}>🎫</Text></View>}
+                <View style={styles.eventInfo}>
+                  <Text style={styles.eventTitle}>{item.eventId?.title || 'Event not loaded'}</Text>
+                  <Text style={styles.eventMeta}>{formatDate(item.eventId?.eventDate)}</Text>
+                  <Text style={styles.eventMeta}>{item.eventId?.venueId?.name || 'Venue TBA'}</Text>
+                </View>
+              </View>
+
+              <View style={styles.infoCard}>
+                <Text style={styles.sectionTitle}>Booking Info</Text>
+                <DetailRow label="Ticket Type" value={item.ticketTypeId?.name || item.ticketTypeId || 'General Entry'} />
+                <DetailRow label="Quantity" value={`${item.quantity || 0} Ticket${Number(item.quantity) === 1 ? '' : 's'}`} />
+                <DetailRow label="Total Amount" value={`NPR ${Number(item.totalAmount || 0).toFixed(0)}`} />
+                <DetailRow label="Booking Date" value={formatDate(item.bookingDate || item.createdAt)} />
+                <DetailRow label="Payment Method" value={item.paymentMethod || 'Pay at Venue'} />
+                {isStaff ? <DetailRow label="Customer" value={item.userId?.name || item.userId?.email || item.userId} /> : null}
+              </View>
+
+              <View style={styles.actionStack}>
+                <AppButton title="Download Ticket" onPress={onDownloadReceipt} />
+                {isStaff && item.status === 'Pending' ? <AppButton title="Confirm Booking" onPress={onConfirm} /> : null}
+                {item.status !== 'Cancelled' ? <AppButton title="Cancel Booking" variant="danger" onPress={onCancel} /> : null}
+              </View>
+            </>
+          ) : (
+            <EmptyState title="Booking not found" actionTitle="Go back" onAction={() => navigation.goBack()} />
+          )}
+        </ScrollView>
       </View>
-    </ScrollView>
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  page: { flexGrow: 1, padding: 20, backgroundColor: colors.background },
-  shell: { width: '100%', maxWidth: 760, alignSelf: 'center' },
-  hero: { backgroundColor: colors.primary, borderRadius: 30, padding: 24, marginBottom: 14, shadowColor: colors.shadow, shadowOpacity: 0.16, shadowRadius: 24, shadowOffset: { width: 0, height: 14 }, elevation: 4 },
-  kicker: { color: '#fff', opacity: 0.82, fontSize: 12, fontWeight: '900', textTransform: 'uppercase', letterSpacing: 1.2 },
-  title: { color: '#fff', fontSize: 30, fontWeight: '900', marginTop: 7, letterSpacing: -0.4 },
-  statusPill: { alignSelf: 'flex-start', marginTop: 14, backgroundColor: 'rgba(255,255,255,0.18)', borderRadius: 999, paddingHorizontal: 12, paddingVertical: 8, flexDirection: 'row', alignItems: 'center' },
-  statusText: { color: '#fff', fontWeight: '900', fontSize: 13 },
-  sectionTitle: { color: colors.text, fontWeight: '900', fontSize: 18, marginBottom: 12 },
-  detailRow: { paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: colors.border },
-  detailLabel: { color: colors.muted, fontWeight: '800', marginBottom: 5, fontSize: 12, textTransform: 'uppercase', letterSpacing: 0.6 },
-  detailValue: { color: colors.text, fontWeight: '700', lineHeight: 21 },
-  actionPanel: { marginTop: 14, gap: 10 },
+  safeArea: { flex: 1, backgroundColor: UI.background },
+  screen: { flex: 1, backgroundColor: UI.background },
+  page: { padding: 18, paddingBottom: 42 },
+  headerRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 18 },
+  backButton: { width: 40, height: 40, borderRadius: 14, backgroundColor: '#fff', alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: UI.border },
+  backText: { color: UI.text, fontSize: 28, lineHeight: 28, fontWeight: '900' },
+  backPlaceholder: { width: 40, height: 40 },
+  headerTitle: { color: UI.text, fontWeight: '900', fontSize: 17 },
+  statusRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16, gap: 12 },
+  statusPill: { borderRadius: 999, borderWidth: 1, paddingHorizontal: 12, paddingVertical: 7 },
+  statusText: { fontSize: 12, fontWeight: '900' },
+  bookingId: { flex: 1, textAlign: 'right', color: UI.text, fontSize: 12, fontWeight: '800' },
+  eventCard: { flexDirection: 'row', backgroundColor: '#fff', borderRadius: 24, padding: 12, borderWidth: 1, borderColor: UI.border, shadowColor: '#9D174D', shadowOffset: { width: 0, height: 10 }, shadowOpacity: 0.08, shadowRadius: 18, elevation: 6 },
+  eventImage: { width: 96, height: 96, borderRadius: 18, backgroundColor: UI.softPink },
+  placeholder: { alignItems: 'center', justifyContent: 'center' },
+  placeholderIcon: { fontSize: 27 },
+  eventInfo: { flex: 1, paddingLeft: 13, justifyContent: 'center' },
+  eventTitle: { color: UI.text, fontSize: 16, fontWeight: '900', lineHeight: 21 },
+  eventMeta: { color: UI.muted, fontSize: 12, fontWeight: '700', marginTop: 6 },
+  infoCard: { backgroundColor: '#fff', borderRadius: 24, padding: 18, marginTop: 16, borderWidth: 1, borderColor: UI.border },
+  sectionTitle: { color: UI.text, fontSize: 17, fontWeight: '900', marginBottom: 12 },
+  detailRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 13, borderBottomWidth: 1, borderBottomColor: '#F7E8F2' },
+  detailLabel: { color: UI.muted, fontSize: 13, fontWeight: '800' },
+  detailValue: { flex: 1, textAlign: 'right', color: UI.text, fontSize: 13, fontWeight: '900', marginLeft: 10 },
+  actionStack: { gap: 12, marginTop: 18 },
 });

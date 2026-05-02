@@ -1,11 +1,30 @@
 import React, { useContext, useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, KeyboardAvoidingView, Platform } from 'react-native';
-import { colors } from '../../constants/colors';
+import {
+  View,
+  Text,
+  StyleSheet,
+  ScrollView,
+  KeyboardAvoidingView,
+  Platform,
+  TouchableOpacity,
+  SafeAreaView,
+} from 'react-native';
 import AppInput from '../../components/AppInput';
 import AppButton from '../../components/AppButton';
 import ErrorMessage from '../../components/ErrorMessage';
 import { AuthContext } from '../../context/AuthContext';
 import { isEmail, isRequired, minLength } from '../../utils/validators';
+
+const UI = {
+  primary: '#EC168C',
+  purple: '#7C3AED',
+  background: '#FFF7FC',
+  card: '#FFFFFF',
+  text: '#111827',
+  muted: '#7C7C8A',
+  border: '#F0DDEB',
+  softPink: '#FFE7F4',
+};
 
 export default function RegisterScreen({ navigation }) {
   const { register } = useContext(AuthContext);
@@ -18,44 +37,37 @@ export default function RegisterScreen({ navigation }) {
 
   const onSubmit = async () => {
     setError('');
-    if (!isRequired(name)) {
-      setError('Name is required.');
-      return;
-    }
-    if (!isRequired(email) || !isEmail(email)) {
-      setError('Please enter a valid email address.');
-      return;
-    }
-    if (!isRequired(password) || !minLength(password, 6)) {
-      setError('Password must contain at least 6 characters.');
-      return;
-    }
+    if (!isRequired(name)) return setError('Name is required.');
+    if (!isRequired(email) || !isEmail(email)) return setError('Please enter a valid email address.');
+    if (!isRequired(password) || !minLength(password, 6)) return setError('Password must contain at least 6 characters.');
 
-    setLoading(true);
-    await register({ name: name.trim(), email: email.trim(), password, phone: phone.trim() });
-    setLoading(false);
+    try {
+      setLoading(true);
+      await register({ name: name.trim(), email: email.trim(), password, phone: phone.trim() });
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
-    <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={styles.keyboardView}>
-      <ScrollView contentContainerStyle={styles.page} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
-        <View style={styles.shell}>
-          <View style={styles.heroCard}>
-            <Text style={styles.kicker}>Create your account</Text>
-            <Text style={styles.title}>Join Evoria and start booking smarter</Text>
-            <Text style={styles.subtitle}>
-              One profile for events, tickets, sessions, and booking management.
-            </Text>
+    <SafeAreaView style={styles.safeArea}>
+      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={styles.keyboardView}>
+        <ScrollView contentContainerStyle={styles.page} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+          <View style={styles.decorOne} />
+          <View style={styles.decorTwo} />
+
+          <View style={styles.brandCircle}>
+            <Text style={styles.brandIcon}>✦</Text>
           </View>
 
-          <View style={styles.card}>
-            <Text style={styles.cardTitle}>Account details</Text>
-            <Text style={styles.cardSubtitle}>Fill in the essentials. You can update your profile later.</Text>
-            <ErrorMessage message={error} />
+          <Text style={styles.title}>Create Account</Text>
+          <Text style={styles.subtitle}>Join Evoria and explore events</Text>
 
-            <AppInput label="Full name" value={name} onChangeText={setName} placeholder="Enter your name" />
+          <View style={styles.formCard}>
+            <ErrorMessage message={error} />
+            <AppInput label="Full Name" value={name} onChangeText={setName} placeholder="Enter your full name" />
             <AppInput
-              label="Email address"
+              label="Email Address"
               value={email}
               onChangeText={setEmail}
               placeholder="you@example.com"
@@ -70,74 +82,57 @@ export default function RegisterScreen({ navigation }) {
               secureTextEntry
             />
             <AppInput
-              label="Phone number"
+              label="Phone Number"
               value={phone}
               onChangeText={setPhone}
-              placeholder="Optional"
+              placeholder="Optional phone number"
               keyboardType="phone-pad"
             />
 
-            <AppButton title={loading ? 'Creating account...' : 'Create account'} onPress={onSubmit} disabled={loading} />
-            {navigation ? (
-              <>
-                <View style={styles.divider} />
-                <AppButton title="Already have an account? Sign in" onPress={() => navigation.navigate('Login')} />
-                <View style={styles.buttonSpacer} />
-                <AppButton title="Create admin account" onPress={() => navigation.navigate('AdminRegister')} />
-              </>
-            ) : null}
+            <View style={styles.termsRow}>
+              <View style={styles.checkBox}><Text style={styles.checkMark}>✓</Text></View>
+              <Text style={styles.termsText}>I agree to the <Text style={styles.linkInline}>Terms & Conditions</Text> and <Text style={styles.linkInline}>Privacy Policy</Text></Text>
+            </View>
+
+            <AppButton title={loading ? 'Creating account...' : 'Sign Up'} onPress={onSubmit} disabled={loading} />
+
+            <View style={styles.bottomRow}>
+              <Text style={styles.bottomText}>Already have an account?</Text>
+              <TouchableOpacity onPress={() => navigation.navigate('Login')}>
+                <Text style={styles.linkText}> Login</Text>
+              </TouchableOpacity>
+            </View>
           </View>
-        </View>
-      </ScrollView>
-    </KeyboardAvoidingView>
+        </ScrollView>
+      </KeyboardAvoidingView>
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  keyboardView: { flex: 1, backgroundColor: colors.background },
-  page: {
-    flexGrow: 1,
-    padding: 20,
-    backgroundColor: colors.background,
-    justifyContent: 'center',
+  safeArea: { flex: 1, backgroundColor: UI.background },
+  keyboardView: { flex: 1 },
+  page: { flexGrow: 1, justifyContent: 'center', paddingHorizontal: 22, paddingVertical: 30 },
+  decorOne: { position: 'absolute', width: 170, height: 170, borderRadius: 85, backgroundColor: UI.softPink, top: -55, left: -65 },
+  decorTwo: { position: 'absolute', width: 120, height: 120, borderRadius: 60, backgroundColor: '#F4E8FF', bottom: 80, right: -50 },
+  brandCircle: {
+    alignSelf: 'center', width: 74, height: 74, borderRadius: 37, backgroundColor: UI.primary,
+    alignItems: 'center', justifyContent: 'center', marginBottom: 20,
+    shadowColor: UI.primary, shadowOffset: { width: 0, height: 10 }, shadowOpacity: 0.35, shadowRadius: 18, elevation: 10,
   },
-  shell: { width: '100%', maxWidth: 560, alignSelf: 'center' },
-  heroCard: {
-    backgroundColor: colors.primary,
-    borderRadius: 30,
-    padding: 24,
-    marginBottom: 16,
-    shadowColor: colors.shadow,
-    shadowOpacity: 0.18,
-    shadowRadius: 24,
-    shadowOffset: { width: 0, height: 14 },
-    elevation: 4,
+  brandIcon: { color: '#fff', fontSize: 30, fontWeight: '900' },
+  title: { textAlign: 'center', fontSize: 27, fontWeight: '900', color: UI.text, marginBottom: 6 },
+  subtitle: { textAlign: 'center', color: UI.muted, fontSize: 14, marginBottom: 22 },
+  formCard: {
+    backgroundColor: UI.card, borderRadius: 28, padding: 18, borderWidth: 1, borderColor: UI.border,
+    shadowColor: '#9D174D', shadowOffset: { width: 0, height: 18 }, shadowOpacity: 0.09, shadowRadius: 24, elevation: 8,
   },
-  kicker: {
-    color: '#fff',
-    opacity: 0.86,
-    fontSize: 12,
-    fontWeight: '900',
-    textTransform: 'uppercase',
-    letterSpacing: 1.3,
-    marginBottom: 8,
-  },
-  title: { fontSize: 31, fontWeight: '900', color: '#fff', lineHeight: 37, letterSpacing: -0.5 },
-  subtitle: { color: '#fff', opacity: 0.84, marginTop: 12, fontSize: 15, lineHeight: 23 },
-  card: {
-    backgroundColor: colors.card,
-    borderRadius: 28,
-    padding: 22,
-    borderWidth: 1,
-    borderColor: colors.border,
-    shadowColor: colors.shadow,
-    shadowOpacity: 0.14,
-    shadowRadius: 24,
-    shadowOffset: { width: 0, height: 14 },
-    elevation: 4,
-  },
-  cardTitle: { fontSize: 22, fontWeight: '900', color: colors.text, marginBottom: 4 },
-  cardSubtitle: { color: colors.muted, marginBottom: 14, lineHeight: 20 },
-  divider: { height: 1, backgroundColor: colors.border, marginVertical: 14 },
-  buttonSpacer: { height: 10 },
+  termsRow: { flexDirection: 'row', gap: 10, alignItems: 'center', marginVertical: 18 },
+  checkBox: { width: 20, height: 20, borderRadius: 6, backgroundColor: UI.primary, alignItems: 'center', justifyContent: 'center' },
+  checkMark: { color: '#fff', fontWeight: '900', fontSize: 12 },
+  termsText: { flex: 1, color: UI.muted, fontSize: 12, lineHeight: 18 },
+  linkInline: { color: UI.primary, fontWeight: '800' },
+  bottomRow: { flexDirection: 'row', justifyContent: 'center', alignItems: 'center', marginTop: 24 },
+  bottomText: { color: UI.text, fontSize: 13 },
+  linkText: { color: UI.primary, fontWeight: '900', fontSize: 13 },
 });

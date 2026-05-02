@@ -12,8 +12,7 @@ export function buildBookingReceiptHtml(booking) {
   const safePaymentDetails = booking?.paymentDetails || {};
 
   const paymentDetailsHtml = booking?.paymentMethod === 'Card'
-    ? `<tr><td>Cardholder</td><td>${safePaymentDetails.cardHolderName || '-'}</td></tr>
-       <tr><td>Card brand</td><td>${safePaymentDetails.cardBrand || '-'}</td></tr>
+    ? `<tr><td>Card brand</td><td>${safePaymentDetails.cardBrand || '-'}</td></tr>
        <tr><td>Card number</td><td>${safePaymentDetails.cardMaskedNumber || '-'}</td></tr>
        <tr><td>Expiry</td><td>${[safePaymentDetails.expiryMonth, safePaymentDetails.expiryYear].filter(Boolean).join(' / ') || '-'}</td></tr>`
     : booking?.paymentMethod === 'Mobile Money'

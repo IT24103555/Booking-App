@@ -1,77 +1,68 @@
-import React, { useContext, useEffect, useState } from 'react';
-import { ScrollView, TouchableOpacity, View, Text, StyleSheet, RefreshControl } from 'react-native';
+import React, { useContext, useEffect, useMemo, useState } from 'react';
+import { ScrollView, TouchableOpacity, View, Text, StyleSheet, RefreshControl, Image, SafeAreaView } from 'react-native';
 import { bookingApi } from '../../api/bookingApi';
 import { getErrorMessage } from '../../api/apiClient';
 import AppButton from '../../components/AppButton';
 import LoadingSpinner from '../../components/LoadingSpinner';
 import ErrorMessage from '../../components/ErrorMessage';
 import EmptyState from '../../components/EmptyState';
-import { colors } from '../../constants/colors';
 import { formatDate } from '../../utils/formatDate';
 import { AuthContext } from '../../context/AuthContext';
+import { API_BASE_URL } from '../../config/apiConfig';
+
+const UPLOADS_BASE = API_BASE_URL && API_BASE_URL.endsWith('/api') ? API_BASE_URL.slice(0, -4) : API_BASE_URL || 'http://localhost:5000';
+const UI = { primary: '#EC168C', purple: '#7C3AED', background: '#FFF7FC', surface: '#FFFFFF', text: '#111827', muted: '#7C7C8A', border: '#F0DDEB', softPink: '#FFE7F4' };
+const imageUrl = (image) => !image ? null : String(image).startsWith('http') ? image : encodeURI(`${UPLOADS_BASE}${image}`);
 
 function getStatusColor(status) {
-  const statusColors = {
-    'Pending': '#f59e0b',
-    'Confirmed': '#10b981',
-    'Cancelled': '#ef4444',
-  };
-  return statusColors[status] || colors.muted;
+  const statusColors = { Pending: '#F59E0B', Confirmed: '#10B981', Cancelled: '#EF4444' };
+  return statusColors[status] || UI.muted;
 }
 
 function BookingCard({ item, onPress }) {
   const eventTitle = item.eventId?.title || 'Event not loaded';
   const venueName = item.eventId?.venueId?.name || 'Venue TBA';
   const statusColor = getStatusColor(item.status);
+  const uri = imageUrl(item.eventId?.image);
 
   return (
-    <TouchableOpacity activeOpacity={0.85} onPress={onPress} style={styles.card}>
-      <View style={styles.cardHeader}>
-        <View style={styles.cardLeft}>
-          <View style={[styles.statusDot, { backgroundColor: statusColor }]} />
-          <View style={styles.cardInfo}>
-            <Text style={styles.cardTitle} numberOfLines={1}>{eventTitle}</Text>
-            <Text style={styles.cardSubtitle} numberOfLines={1}>📍 {venueName}</Text>
-            <Text style={styles.cardBookingId}>Booking #{String(item._id).slice(-6).toUpperCase()}</Text>
+    <TouchableOpacity activeOpacity={0.88} onPress={onPress} style={styles.card}>
+      {uri ? <Image source={{ uri }} style={styles.cardImage} /> : <View style={[styles.cardImage, styles.placeholder]}><Text style={styles.placeholderIcon}>🎫</Text></View>}
+      <View style={styles.cardContent}>
+        <View style={styles.cardTopRow}>
+          <Text style={styles.cardTitle} numberOfLines={1}>{eventTitle}</Text>
+          <View style={[styles.statusBadge, { backgroundColor: `${statusColor}22`, borderColor: `${statusColor}66` }]}>
+            <Text style={[styles.statusText, { color: statusColor }]}>{item.status}</Text>
           </View>
         </View>
-        <View style={[styles.statusBadge, { backgroundColor: statusColor }]}>
-          <Text style={styles.statusText}>{item.status}</Text>
-        </View>
-      </View>
-      
-      <View style={styles.cardDivider} />
-      
-      <View style={styles.cardFooter}>
-        <View style={styles.metaItem}>
-          <Text style={styles.metaLabel}>Tickets</Text>
-          <Text style={styles.metaValue}>{item.quantity}x</Text>
-        </View>
-        <View style={styles.metaItem}>
-          <Text style={styles.metaLabel}>Total</Text>
-          <Text style={styles.metaValue}>${item.totalAmount?.toFixed(2) || '0.00'}</Text>
-        </View>
-          <View style={styles.metaItem}>
-            <Text style={styles.metaLabel}>Payment</Text>
-            <Text style={styles.metaValue} numberOfLines={1}>{item.paymentMethod || '—'}</Text>
-          </View>
-        <View style={styles.metaItem}>
-          <Text style={styles.metaLabel}>Date</Text>
-          <Text style={styles.metaValue}>{formatDate(item.eventId?.eventDate || item.createdAt).split(',')[0]}</Text>
+        <Text style={styles.cardMeta} numberOfLines={1}>{formatDate(item.eventId?.eventDate || item.createdAt)}</Text>
+        <Text style={styles.cardMeta} numberOfLines={1}>{venueName}</Text>
+        <View style={styles.cardFooter}>
+          <Text style={styles.ticketText}>{item.quantity || 0} Ticket{Number(item.quantity) === 1 ? '' : 's'}</Text>
+          <Text style={styles.amountText}>NPR {Number(item.totalAmount || 0).toFixed(0)}</Text>
         </View>
       </View>
     </TouchableOpacity>
   );
 }
 
-export default function BookingListScreen({ navigation }) {
-  const { user } = useContext(AuthContext);
-  const isStaff = user?.role === 'admin' || user?.role === 'organizer';
+function StatCard({ label, value, color }) {
+  return <View style={styles.statCard}><Text style={[styles.statValue, { color }]}>{value}</Text><Text style={styles.statLabel}>{label}</Text></View>;
+}
 
+function FloatingChatButton({ navigation, hidden }) {
+  if (hidden) return null;
+  return <TouchableOpacity style={styles.floatingChat} activeOpacity={0.88} onPress={() => navigation.navigate('Chatbot')}><Text style={styles.floatingChatText}>💬</Text></TouchableOpacity>;
+}
+
+export default function BookingListScreen({ navigation }) {
+  const { user, loading: authLoading } = useContext(AuthContext);
+  const isStaff = user?.role === 'admin' || user?.role === 'organizer';
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState('');
+  const [tab, setTab] = useState('Upcoming');
 
   const load = async (isRefresh = false) => {
     try {
@@ -88,247 +79,105 @@ export default function BookingListScreen({ navigation }) {
   };
 
   useEffect(() => {
+    if (authLoading) return;
     load();
-  }, []);
+  }, [authLoading, user?.role]);
+
+  const confirmedCount = items.filter((b) => b.status === 'Confirmed').length;
+  const pendingCount = items.filter((b) => b.status === 'Pending').length;
+  const cancelledCount = items.filter((b) => b.status === 'Cancelled').length;
+
+  const filtered = useMemo(() => {
+    if (tab === 'Past') return items.filter((b) => b.status === 'Cancelled');
+    return items.filter((b) => b.status !== 'Cancelled');
+  }, [items, tab]);
 
   if (loading) return <LoadingSpinner />;
 
-  const confirmedCount = items.filter(b => b.status === 'Confirmed').length;
-  const pendingCount = items.filter(b => b.status === 'Pending').length;
-  const cancelledCount = items.filter(b => b.status === 'Cancelled').length;
-
   return (
-    <ScrollView
-      contentContainerStyle={styles.page}
-      showsVerticalScrollIndicator={false}
-      refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => load(true)} />}
-    >
-      <View style={styles.shell}>
-        {/* Header */}
-        <View style={styles.header}>
-          <View style={styles.headerText}>
-            <Text style={styles.kicker}>{isStaff ? 'Management' : 'My activity'}</Text>
-            <Text style={styles.pageTitle}>Bookings</Text>
-            <Text style={styles.pageSubtitle}>{isStaff ? 'Review and manage all reservations' : 'Track your reservations'}</Text>
+    <SafeAreaView style={styles.safeArea}>
+      <View style={styles.screen}>
+        <ScrollView
+          contentContainerStyle={styles.page}
+          showsVerticalScrollIndicator={false}
+          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => load(true)} tintColor={UI.primary} />}
+        >
+          <View style={styles.headerRow}>
+            <View>
+              <Text style={styles.kicker}>{isStaff ? 'All reservations' : 'My reservations'}</Text>
+              <Text style={styles.pageTitle}>{isStaff ? 'Bookings' : 'My Bookings'}</Text>
+            </View>
+            {!isStaff ? (
+              <TouchableOpacity style={styles.addButton} onPress={() => navigation.navigate('CreateBooking')}>
+                <Text style={styles.addButtonText}>＋</Text>
+              </TouchableOpacity>
+            ) : (
+              <View style={styles.addButtonPlaceholder} />
+            )}
           </View>
-          {!isStaff && <View style={styles.headerAction}><AppButton title="New Booking" onPress={() => navigation.navigate('CreateBooking')} /></View>}
-        </View>
 
-        {/* Stats */}
-        {items.length > 0 && (
           <View style={styles.statsRow}>
-            <View style={styles.statCard}>
-              <Text style={styles.statValue}>{confirmedCount}</Text>
-              <Text style={styles.statLabel}>Confirmed</Text>
-            </View>
-            <View style={styles.statCard}>
-              <Text style={styles.statValue}>{pendingCount}</Text>
-              <Text style={styles.statLabel}>Pending</Text>
-            </View>
-            <View style={styles.statCard}>
-              <Text style={styles.statValue}>{cancelledCount}</Text>
-              <Text style={styles.statLabel}>Cancelled</Text>
-            </View>
+            <StatCard label="Confirmed" value={confirmedCount} color="#10B981" />
+            <StatCard label="Pending" value={pendingCount} color="#F59E0B" />
+            <StatCard label="Cancelled" value={cancelledCount} color="#EF4444" />
           </View>
-        )}
 
-        <ErrorMessage message={error} />
-
-        {/* Bookings List */}
-        {items.length === 0 ? (
-          <EmptyState title="No bookings yet" actionTitle="Reload" onAction={() => load()} />
-        ) : (
-          <View style={styles.listContainer}>
-            {items.map((item) => (
-              <BookingCard
-                key={item._id}
-                item={item}
-                onPress={() => navigation.navigate('BookingDetails', { id: item._id })}
-              />
+          <View style={styles.tabRow}>
+            {['Upcoming', 'Past'].map((item) => (
+              <TouchableOpacity key={item} style={[styles.tabButton, tab === item && styles.tabButtonActive]} onPress={() => setTab(item)}>
+                <Text style={[styles.tabText, tab === item && styles.tabTextActive]}>{item}</Text>
+              </TouchableOpacity>
             ))}
           </View>
-        )}
+
+          <ErrorMessage message={error} />
+          {filtered.length === 0 ? (
+            <EmptyState title="No bookings found" actionTitle="Reload" onAction={() => load()} />
+          ) : (
+            <View style={styles.list}>
+              {filtered.map((item) => <BookingCard key={item._id} item={item} onPress={() => navigation.navigate('BookingDetails', { id: item._id })} />)}
+            </View>
+          )}
+        </ScrollView>
+        <FloatingChatButton navigation={navigation} hidden={isStaff} />
       </View>
-    </ScrollView>
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  page: {
-    flexGrow: 1,
-    padding: 16,
-    backgroundColor: colors.background,
-  },
-  shell: {
-    maxWidth: 1000,
-    width: '100%',
-    alignSelf: 'center',
-  },
-  
-  // Header
-  header: {
-    marginBottom: 20,
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
-    gap: 12,
-  },
-  headerText: {
-    flex: 1,
-  },
-  headerAction: {
-    minWidth: 130,
-  },
-  kicker: {
-    color: colors.accent,
-    fontSize: 12,
-    fontWeight: '900',
-    textTransform: 'uppercase',
-    letterSpacing: 1.2,
-    marginBottom: 6,
-  },
-  pageTitle: {
-    fontSize: 32,
-    fontWeight: '900',
-    color: colors.text,
-    letterSpacing: -0.6,
-    marginBottom: 6,
-  },
-  pageSubtitle: {
-    color: colors.muted,
-    fontSize: 16,
-    lineHeight: 24,
-    maxWidth: 600,
-  },
-
-  // Stats
-  statsRow: {
-    flexDirection: 'row',
-    gap: 12,
-    marginBottom: 20,
-  },
-  statCard: {
-    flex: 1,
-    backgroundColor: colors.card,
-    borderRadius: 16,
-    padding: 16,
-    borderWidth: 1,
-    borderColor: colors.border,
-    alignItems: 'center',
-    shadowColor: colors.shadow,
-    shadowOpacity: 0.06,
-    shadowRadius: 8,
-    shadowOffset: { width: 0, height: 2 },
-    elevation: 1,
-  },
-  statValue: {
-    fontSize: 24,
-    fontWeight: '900',
-    color: colors.primary,
-    marginBottom: 4,
-  },
-  statLabel: {
-    fontSize: 12,
-    color: colors.muted,
-    fontWeight: '700',
-    textTransform: 'uppercase',
-    letterSpacing: 0.4,
-  },
-
-  // List
-  listContainer: {
-    gap: 12,
-    marginBottom: 16,
-  },
-  card: {
-    backgroundColor: colors.card,
-    borderRadius: 16,
-    overflow: 'hidden',
-    borderWidth: 1,
-    borderColor: colors.border,
-    shadowColor: colors.shadow,
-    shadowOpacity: 0.08,
-    shadowRadius: 12,
-    shadowOffset: { width: 0, height: 4 },
-    elevation: 2,
-  },
-  cardHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
-    padding: 14,
-    gap: 10,
-  },
-  cardLeft: {
-    flex: 1,
-    flexDirection: 'row',
-    gap: 10,
-    alignItems: 'flex-start',
-  },
-  statusDot: {
-    width: 12,
-    height: 12,
-    borderRadius: 6,
-    marginTop: 3,
-  },
-  cardInfo: {
-    flex: 1,
-  },
-  cardTitle: {
-    fontSize: 14,
-    fontWeight: '800',
-    color: colors.text,
-    marginBottom: 2,
-  },
-  cardSubtitle: {
-    fontSize: 12,
-    color: colors.muted,
-    fontWeight: '500',
-    marginBottom: 4,
-  },
-  cardBookingId: {
-    fontSize: 10,
-    color: colors.primary,
-    fontWeight: '700',
-    letterSpacing: 0.2,
-  },
-  statusBadge: {
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 8,
-    minWidth: 80,
-    alignItems: 'center',
-  },
-  statusText: {
-    color: '#fff',
-    fontWeight: '700',
-    fontSize: 11,
-    textTransform: 'capitalize',
-  },
-  cardDivider: {
-    height: 1,
-    backgroundColor: colors.border,
-  },
-  cardFooter: {
-    flexDirection: 'row',
-    padding: 12,
-    gap: 12,
-  },
-  metaItem: {
-    flex: 1,
-    alignItems: 'center',
-  },
-  metaLabel: {
-    fontSize: 10,
-    color: colors.muted,
-    fontWeight: '700',
-    textTransform: 'uppercase',
-    letterSpacing: 0.4,
-    marginBottom: 2,
-  },
-  metaValue: {
-    fontSize: 13,
-    fontWeight: '800',
-    color: colors.text,
-  },
+  safeArea: { flex: 1, backgroundColor: UI.background },
+  screen: { flex: 1, backgroundColor: UI.background },
+  page: { padding: 18, paddingBottom: 98 },
+  headerRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 },
+  kicker: { color: UI.primary, fontSize: 12, fontWeight: '900', textTransform: 'uppercase', letterSpacing: 0.6 },
+  pageTitle: { color: UI.text, fontSize: 28, fontWeight: '900', marginTop: 4 },
+  addButton: { width: 48, height: 48, borderRadius: 18, backgroundColor: UI.primary, alignItems: 'center', justifyContent: 'center', shadowColor: UI.primary, shadowOffset: { width: 0, height: 10 }, shadowOpacity: 0.25, shadowRadius: 16, elevation: 8 },
+  addButtonPlaceholder: { width: 48, height: 48 },
+  addButtonText: { color: '#fff', fontSize: 27, lineHeight: 30, fontWeight: '900' },
+  statsRow: { flexDirection: 'row', gap: 10, marginBottom: 18 },
+  statCard: { flex: 1, backgroundColor: '#fff', borderRadius: 20, padding: 14, borderWidth: 1, borderColor: UI.border },
+  statValue: { fontSize: 20, fontWeight: '900' },
+  statLabel: { color: UI.muted, fontSize: 11, fontWeight: '800', marginTop: 4 },
+  tabRow: { flexDirection: 'row', backgroundColor: '#fff', borderRadius: 18, padding: 5, borderWidth: 1, borderColor: UI.border, marginBottom: 16 },
+  tabButton: { flex: 1, alignItems: 'center', paddingVertical: 11, borderRadius: 14 },
+  tabButtonActive: { backgroundColor: UI.primary },
+  tabText: { color: UI.muted, fontWeight: '900' },
+  tabTextActive: { color: '#fff' },
+  list: { gap: 14 },
+  card: { backgroundColor: '#fff', borderRadius: 24, padding: 10, flexDirection: 'row', borderWidth: 1, borderColor: UI.border, shadowColor: '#9D174D', shadowOffset: { width: 0, height: 10 }, shadowOpacity: 0.08, shadowRadius: 18, elevation: 6 },
+  cardImage: { width: 92, height: 100, borderRadius: 17, backgroundColor: UI.softPink },
+  placeholder: { alignItems: 'center', justifyContent: 'center' },
+  placeholderIcon: { fontSize: 25 },
+  cardContent: { flex: 1, paddingLeft: 12, justifyContent: 'space-between' },
+  cardTopRow: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', gap: 8 },
+  cardTitle: { flex: 1, color: UI.text, fontSize: 15, fontWeight: '900' },
+  statusBadge: { paddingHorizontal: 8, paddingVertical: 4, borderRadius: 999, borderWidth: 1 },
+  statusText: { fontSize: 10, fontWeight: '900' },
+  cardMeta: { color: UI.muted, fontSize: 12, fontWeight: '700', marginTop: 4 },
+  cardFooter: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 8 },
+  ticketText: { color: UI.muted, fontSize: 12, fontWeight: '800' },
+  amountText: { color: UI.primary, fontSize: 13, fontWeight: '900' },
+  floatingChat: { position: 'absolute', right: 20, bottom: 24, width: 58, height: 58, borderRadius: 29, backgroundColor: UI.primary, alignItems: 'center', justifyContent: 'center', shadowColor: UI.primary, shadowOffset: { width: 0, height: 10 }, shadowOpacity: 0.35, shadowRadius: 18, elevation: 12 },
+  floatingChatText: { fontSize: 24 },
 });

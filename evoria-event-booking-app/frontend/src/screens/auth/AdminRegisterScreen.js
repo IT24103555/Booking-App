@@ -1,11 +1,30 @@
 import React, { useContext, useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, KeyboardAvoidingView, Platform } from 'react-native';
-import { colors } from '../../constants/colors';
+import {
+  View,
+  Text,
+  StyleSheet,
+  ScrollView,
+  KeyboardAvoidingView,
+  Platform,
+  TouchableOpacity,
+  SafeAreaView,
+} from 'react-native';
 import AppInput from '../../components/AppInput';
 import AppButton from '../../components/AppButton';
 import ErrorMessage from '../../components/ErrorMessage';
 import { AuthContext } from '../../context/AuthContext';
 import { isEmail, isRequired, minLength } from '../../utils/validators';
+
+const UI = {
+  primary: '#EC168C',
+  purple: '#7C3AED',
+  background: '#FFF7FC',
+  card: '#FFFFFF',
+  text: '#111827',
+  muted: '#7C7C8A',
+  border: '#F0DDEB',
+  softPink: '#FFE7F4',
+};
 
 export default function AdminRegisterScreen({ navigation }) {
   const { register } = useContext(AuthContext);
@@ -19,141 +38,80 @@ export default function AdminRegisterScreen({ navigation }) {
 
   const onSubmit = async () => {
     setError('');
-    if (!isRequired(name)) {
-      setError('Name is required.');
-      return;
-    }
-    if (!isRequired(email) || !isEmail(email)) {
-      setError('Please enter a valid email address.');
-      return;
-    }
-    if (!isRequired(password) || !minLength(password, 6)) {
-      setError('Password must contain at least 6 characters.');
-      return;
-    }
-    if (!isRequired(adminKey)) {
-      setError('Admin key is required.');
-      return;
-    }
+    if (!isRequired(name)) return setError('Name is required.');
+    if (!isRequired(email) || !isEmail(email)) return setError('Please enter a valid email address.');
+    if (!isRequired(password) || !minLength(password, 6)) return setError('Password must contain at least 6 characters.');
+    if (!isRequired(adminKey)) return setError('Admin key is required.');
 
-    setLoading(true);
-    await register({
-      name: name.trim(),
-      email: email.trim(),
-      password,
-      phone: phone.trim(),
-      role: 'admin',
-      adminKey: adminKey.trim(),
-    });
-    setLoading(false);
+    try {
+      setLoading(true);
+      await register({ name: name.trim(), email: email.trim(), password, phone: phone.trim(), role: 'admin', adminKey: adminKey.trim() });
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
-    <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={styles.keyboardView}>
-      <ScrollView contentContainerStyle={styles.page} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
-        <View style={styles.shell}>
-          <View style={styles.heroCard}>
-            <Text style={styles.kicker}>Admin access</Text>
-            <Text style={styles.title}>Create an admin account</Text>
-            <Text style={styles.subtitle}>
-              Use the admin key to create a privileged account for managing events, users, and bookings.
-            </Text>
-          </View>
+    <SafeAreaView style={styles.safeArea}>
+      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={styles.keyboardView}>
+        <ScrollView contentContainerStyle={styles.page} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
+          <View style={styles.decorOne} />
+          <View style={styles.decorTwo} />
 
-          <View style={styles.card}>
-            <Text style={styles.cardTitle}>Admin account details</Text>
-            <Text style={styles.cardSubtitle}>This follows a separate creation flow from customer signup.</Text>
+          <View style={styles.brandCircle}>
+            <Text style={styles.brandIcon}>⚙</Text>
+          </View>
+          <Text style={styles.kicker}>Admin Access</Text>
+          <Text style={styles.title}>Create Admin Account</Text>
+          <Text style={styles.subtitle}>Use your admin key to manage users, events, tickets, venues and bookings.</Text>
+
+          <View style={styles.formCard}>
             <ErrorMessage message={error} />
+            <AppInput label="Full Name" value={name} onChangeText={setName} placeholder="Admin full name" />
+            <AppInput label="Email Address" value={email} onChangeText={setEmail} placeholder="admin@example.com" keyboardType="email-address" autoCapitalize="none" />
+            <AppInput label="Password" value={password} onChangeText={setPassword} placeholder="Minimum 6 characters" secureTextEntry />
+            <AppInput label="Phone Number" value={phone} onChangeText={setPhone} placeholder="Optional phone number" keyboardType="phone-pad" />
+            <AppInput label="Admin Key" value={adminKey} onChangeText={setAdminKey} placeholder="Enter admin key" secureTextEntry />
 
-            <AppInput label="Full name" value={name} onChangeText={setName} placeholder="Enter admin name" />
-            <AppInput
-              label="Email address"
-              value={email}
-              onChangeText={setEmail}
-              placeholder="admin@example.com"
-              keyboardType="email-address"
-              autoCapitalize="none"
-            />
-            <AppInput
-              label="Password"
-              value={password}
-              onChangeText={setPassword}
-              placeholder="Minimum 6 characters"
-              secureTextEntry
-            />
-            <AppInput
-              label="Phone number"
-              value={phone}
-              onChangeText={setPhone}
-              placeholder="Optional"
-              keyboardType="phone-pad"
-            />
-            <AppInput
-              label="Admin key"
-              value={adminKey}
-              onChangeText={setAdminKey}
-              placeholder="Enter the admin key"
-              secureTextEntry
-            />
+            <View style={styles.warningCard}>
+              <Text style={styles.warningIcon}>🔐</Text>
+              <Text style={styles.warningText}>Admin accounts have access to platform management features. Keep your login details secure.</Text>
+            </View>
 
-            <AppButton title={loading ? 'Creating admin...' : 'Create admin account'} onPress={onSubmit} disabled={loading} />
-            {navigation ? (
-              <>
-                <View style={styles.divider} />
-                <AppButton title="Back to login" onPress={() => navigation.navigate('Login')} />
-              </>
-            ) : null}
+            <AppButton title={loading ? 'Creating admin...' : 'Create Admin'} onPress={onSubmit} disabled={loading} />
+
+            <TouchableOpacity onPress={() => navigation.navigate('Login')} style={styles.backLink}>
+              <Text style={styles.backLinkText}>Back to Login</Text>
+            </TouchableOpacity>
           </View>
-        </View>
-      </ScrollView>
-    </KeyboardAvoidingView>
+        </ScrollView>
+      </KeyboardAvoidingView>
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  keyboardView: { flex: 1, backgroundColor: colors.background },
-  page: {
-    flexGrow: 1,
-    padding: 20,
-    backgroundColor: colors.background,
-    justifyContent: 'center',
+  safeArea: { flex: 1, backgroundColor: UI.background },
+  keyboardView: { flex: 1 },
+  page: { flexGrow: 1, justifyContent: 'center', paddingHorizontal: 22, paddingVertical: 30 },
+  decorOne: { position: 'absolute', width: 180, height: 180, borderRadius: 90, backgroundColor: UI.softPink, top: -60, right: -70 },
+  decorTwo: { position: 'absolute', width: 130, height: 130, borderRadius: 65, backgroundColor: '#F4E8FF', bottom: 70, left: -55 },
+  brandCircle: {
+    alignSelf: 'center', width: 74, height: 74, borderRadius: 37, backgroundColor: UI.primary,
+    alignItems: 'center', justifyContent: 'center', marginBottom: 14,
+    shadowColor: UI.primary, shadowOffset: { width: 0, height: 10 }, shadowOpacity: 0.35, shadowRadius: 18, elevation: 10,
   },
-  shell: { width: '100%', maxWidth: 560, alignSelf: 'center' },
-  heroCard: {
-    backgroundColor: colors.primary,
-    borderRadius: 30,
-    padding: 24,
-    marginBottom: 16,
-    shadowColor: colors.shadow,
-    shadowOpacity: 0.18,
-    shadowRadius: 24,
-    shadowOffset: { width: 0, height: 14 },
-    elevation: 4,
+  brandIcon: { color: '#fff', fontSize: 27, fontWeight: '900' },
+  kicker: { textAlign: 'center', color: UI.primary, fontWeight: '900', letterSpacing: 0.6, textTransform: 'uppercase', fontSize: 12, marginBottom: 5 },
+  title: { textAlign: 'center', fontSize: 27, fontWeight: '900', color: UI.text, marginBottom: 8 },
+  subtitle: { textAlign: 'center', color: UI.muted, fontSize: 14, lineHeight: 21, marginBottom: 22, paddingHorizontal: 8 },
+  formCard: {
+    backgroundColor: UI.card, borderRadius: 28, padding: 18, borderWidth: 1, borderColor: UI.border,
+    shadowColor: '#9D174D', shadowOffset: { width: 0, height: 18 }, shadowOpacity: 0.09, shadowRadius: 24, elevation: 8,
   },
-  kicker: {
-    color: '#fff',
-    opacity: 0.86,
-    fontSize: 12,
-    fontWeight: '900',
-    textTransform: 'uppercase',
-    letterSpacing: 1.3,
-    marginBottom: 8,
-  },
-  title: { fontSize: 31, fontWeight: '900', color: '#fff', lineHeight: 37, letterSpacing: -0.5 },
-  subtitle: { color: '#fff', opacity: 0.84, marginTop: 12, fontSize: 15, lineHeight: 23 },
-  card: {
-    backgroundColor: colors.card,
-    borderRadius: 28,
-    padding: 22,
-    borderWidth: 1,
-    borderColor: colors.border,
-    shadowColor: colors.shadow,
-    shadowOpacity: 0.14,
-    shadowRadius: 24,
-    shadowOffset: { width: 0, height: 14 },
-    elevation: 4,
-  },
-  cardTitle: { fontSize: 22, fontWeight: '900', color: colors.text, marginBottom: 4 },
-  cardSubtitle: { color: colors.muted, marginBottom: 14, lineHeight: 20 },
-  divider: { height: 1, backgroundColor: colors.border, marginVertical: 14 },
+  warningCard: { flexDirection: 'row', gap: 10, backgroundColor: '#FFF0F8', borderWidth: 1, borderColor: UI.border, borderRadius: 18, padding: 12, marginVertical: 18 },
+  warningIcon: { fontSize: 18 },
+  warningText: { flex: 1, color: UI.muted, fontSize: 12, lineHeight: 18, fontWeight: '600' },
+  backLink: { alignItems: 'center', paddingVertical: 14 },
+  backLinkText: { color: UI.purple, fontWeight: '900', fontSize: 13 },
 });

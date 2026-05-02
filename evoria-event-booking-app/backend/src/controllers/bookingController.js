@@ -6,19 +6,9 @@ const { createBookingSchema, updateBookingSchema } = require('../validations/boo
 
 const generatePaymentReference = () => `PAY-${Date.now().toString(36).toUpperCase()}-${Math.random().toString(36).slice(2, 8).toUpperCase()}`;
 
-const detectCardBrand = (cardNumber) => {
-  const digits = String(cardNumber || '');
-  if (/^4/.test(digits)) return 'Visa';
-  if (/^(5[1-5]|2[2-7])/.test(digits)) return 'Mastercard';
-  if (/^3[47]/.test(digits)) return 'American Express';
-  if (/^(6011|65)/.test(digits)) return 'Discover';
-  return 'Card';
-};
-
-const maskCardNumber = (cardNumber) => {
-  const digits = String(cardNumber || '').replace(/\D/g, '');
-  const last4 = digits.slice(-4);
-  return `**** **** **** ${last4}`;
+const maskCardNumber = (last4) => {
+  const digits = String(last4 || '').replace(/\D/g, '').slice(-4);
+  return digits ? `**** **** **** ${digits}` : '';
 };
 
 // Helper: adjust ticket availability safely
@@ -97,10 +87,9 @@ const createBooking = async (req, res, next) => {
     const isInstantPayment = paymentMethod === 'Card' || paymentMethod === 'Mobile Money';
     const safePaymentDetails = paymentMethod === 'Card'
       ? {
-          cardHolderName: paymentDetails.cardHolderName,
-          cardBrand: detectCardBrand(paymentDetails.cardNumber),
-          cardLast4: String(paymentDetails.cardNumber).slice(-4),
-          cardMaskedNumber: maskCardNumber(paymentDetails.cardNumber),
+          cardBrand: paymentDetails.cardBrand,
+          cardLast4: paymentDetails.last4,
+          cardMaskedNumber: maskCardNumber(paymentDetails.last4),
           expiryMonth: paymentDetails.expiryMonth,
           expiryYear: paymentDetails.expiryYear,
           transactionStatus: 'Approved',
