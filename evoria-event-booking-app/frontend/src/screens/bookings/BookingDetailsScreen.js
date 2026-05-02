@@ -99,6 +99,8 @@ export default function BookingDetailsScreen({ route, navigation }) {
               <DetailRow label="Event" value={item.eventId?.title || item.eventId} />
               <DetailRow label="Ticket Type" value={item.ticketTypeId?.name || item.ticketTypeId} />
               <DetailRow label="Quantity" value={String(item.quantity)} />
+              <DetailRow label="Payment Method" value={item.paymentMethod} />
+              <DetailRow label="Payment Status" value={item.paymentStatus} />
               <DetailRow label="Created" value={formatDate(item.createdAt)} />
               <DetailRow label="Booking ID" value={item._id} />
             </AppCard>

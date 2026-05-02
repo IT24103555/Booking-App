@@ -1,0 +1,11 @@
+{
+  "installCommand": "cd evoria-event-booking-app/frontend && npm install",
+  "buildCommand": "cd evoria-event-booking-app/frontend && npm run build:web",
+  "outputDirectory": "evoria-event-booking-app/frontend/dist",
+  "rewrites": [
+    {
+      "source": "/(.*)",
+      "destination": "/index.html"
+    }
+  ]
+}

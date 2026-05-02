@@ -145,8 +145,14 @@ Base URL examples:
 
 ### C) Connect Mobile App to Hosted API
 1. Open `frontend/src/config/apiConfig.js`
-2. Set `API_BASE_URL` to your Render URL.
+2. Set `API_BASE_URL` to your hosted backend URL through `EXPO_PUBLIC_API_BASE_URL` in Vercel or your frontend host.
 3. Rebuild / restart Expo.
+
+### D) Deploy Frontend on Vercel
+1. Set the Vercel project root to the repository root or to `evoria-event-booking-app/frontend`.
+2. Vercel should run the static export from `expo export --platform web`.
+3. Make sure the deployed frontend points to your hosted backend, not `localhost:5000`.
+4. If you deploy from the repo root, keep the provided `vercel.json` in place.
 
 ## Notes for Viva (Explainable Modules)
 - Each module is separated into: `models/`, `validations/`, `controllers/`, `routes/`, and `middleware/`.

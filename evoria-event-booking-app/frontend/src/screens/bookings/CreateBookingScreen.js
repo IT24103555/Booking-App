@@ -2,12 +2,16 @@ import React, { useEffect, useState } from 'react';
 import { Alert, View, Text, StyleSheet, ScrollView, KeyboardAvoidingView, Platform, TouchableOpacity, Image } from 'react-native';
 import { eventApi } from '../../api/eventApi';
 import { sessionAgendaApi } from '../../api/sessionAgendaApi';
+import { API_BASE_URL } from '../../config/apiConfig';
+
+const UPLOADS_BASE = API_BASE_URL && API_BASE_URL.endsWith('/api') ? API_BASE_URL.slice(0, -4) : API_BASE_URL || 'http://localhost:5000';
 import { bookingApi } from '../../api/bookingApi';
 import { getErrorMessage } from '../../api/apiClient';
 import AppInput from '../../components/AppInput';
 import AppButton from '../../components/AppButton';
 import ErrorMessage from '../../components/ErrorMessage';
 import { colors } from '../../constants/colors';
+import { bookingPaymentMethods } from '../../constants/status';
 import { isPositiveInt, isRequired } from '../../utils/validators';
 
 export default function CreateBookingScreen({ route, navigation }) {
@@ -15,6 +19,7 @@ export default function CreateBookingScreen({ route, navigation }) {
   const [eventId, setEventId] = useState(preEventId);
   const [ticketTypeId, setTicketTypeId] = useState('');
   const [quantity, setQuantity] = useState('1');
+  const [paymentMethod, setPaymentMethod] = useState('Pay at Venue');
   const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
   const [events, setEvents] = useState([]);
@@ -54,7 +59,12 @@ export default function CreateBookingScreen({ route, navigation }) {
 
     try {
       setSaving(true);
-      await bookingApi.create({ eventId: eventId.trim(), ticketTypeId: ticketTypeId.trim(), quantity: Number(quantity) });
+      await bookingApi.create({
+        eventId: eventId.trim(),
+        ticketTypeId: ticketTypeId.trim(),
+        quantity: Number(quantity),
+        paymentMethod,
+      });
       Alert.alert('Success', 'Booking created');
       navigation.goBack();
     } catch (e) {
@@ -113,14 +123,16 @@ export default function CreateBookingScreen({ route, navigation }) {
                     }}>
                       {e.image && (
                         <Image 
-                          source={{ uri: `http://localhost:5000${e.image}` }} 
+                          source={{ uri: encodeURI(`${UPLOADS_BASE}${e.image}`) }} 
                           style={styles.eventListImage}
                           resizeMode="cover"
+                          onLoad={() => console.log('Image loaded', `${UPLOADS_BASE}${e.image}`)}
+                          onError={(ev) => console.warn('Image load error', ev.nativeEvent?.error, `${UPLOADS_BASE}${e.image}`)}
                         />
                       )}
                       <View style={styles.eventListContent}>
                         <Text style={styles.listItemTitle}>{e.title}</Text>
-                        <Text style={styles.listItemMeta}>{e.venueId?.name || ''} — {e.eventDate ? String(e.eventDate).slice(0,10) : ''}</Text>
+                          <Text style={styles.listItemMeta}>{e.venueId?.name || ''} — {e.eventDate ? String(e.eventDate).slice(0,10) : ''}</Text>
                         <Text style={[styles.listItemMeta, { marginTop: 4 }]}>{e.description?.slice(0, 50)}...</Text>
                       </View>
                     </TouchableOpacity>
@@ -132,9 +144,11 @@ export default function CreateBookingScreen({ route, navigation }) {
               <View style={[styles.selectorCard, { marginTop: 6 }]}>
                 {selectedEvent.image && (
                   <Image 
-                    source={{ uri: `http://localhost:5000${selectedEvent.image}` }} 
+                    source={{ uri: encodeURI(`${UPLOADS_BASE}${selectedEvent.image}`) }} 
                     style={styles.selectedEventImage}
                     resizeMode="cover"
+                    onLoad={() => console.log('Image loaded', `${UPLOADS_BASE}${selectedEvent.image}`)}
+                    onError={(ev) => console.warn('Image load error', ev.nativeEvent?.error, `${UPLOADS_BASE}${selectedEvent.image}`)}
                   />
                 )}
                 <Text style={[styles.selectorLabel, { marginTop: selectedEvent.image ? 12 : 0 }]}>Event details</Text>
@@ -179,6 +193,25 @@ export default function CreateBookingScreen({ route, navigation }) {
                 <Text style={{ color: colors.muted, fontSize: 13 }}>Available: {maxQuantity}</Text>
               </View>
             )}
+
+            <View style={styles.selectorCard}>
+              <Text style={styles.selectorLabel}>Payment method</Text>
+              <Text style={styles.paymentHint}>Choose how the customer will pay for this booking.</Text>
+              <View style={styles.paymentOptions}>
+                {bookingPaymentMethods.map((method) => (
+                  <TouchableOpacity
+                    key={method}
+                    activeOpacity={0.85}
+                    onPress={() => setPaymentMethod(method)}
+                    style={[styles.paymentChip, paymentMethod === method && styles.paymentChipActive]}
+                  >
+                    <Text style={[styles.paymentChipText, paymentMethod === method && styles.paymentChipTextActive]}>{method}</Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+              <Text style={styles.paymentSummary}>Selected: {paymentMethod}</Text>
+            </View>
+
             <AppInput label="Quantity" value={quantity} onChangeText={(val) => {
               const digits = String(val).replace(/[^0-9]/g, '');
               if (digits === '') return setQuantity('');
@@ -219,4 +252,11 @@ const styles = StyleSheet.create({
   listItemTitle: { fontWeight: '700', color: colors.text },
   listItemMeta: { color: colors.muted, fontSize: 12, marginTop: 4 },
   helperText: { color: colors.muted, fontSize: 12, lineHeight: 18, marginTop: -4, marginBottom: 12 },
+  paymentHint: { color: colors.muted, fontSize: 12, lineHeight: 18, marginBottom: 10 },
+  paymentOptions: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginBottom: 10 },
+  paymentChip: { paddingVertical: 10, paddingHorizontal: 12, borderRadius: 999, borderWidth: 1.5, borderColor: colors.border, backgroundColor: '#fff' },
+  paymentChipActive: { borderColor: colors.primary, backgroundColor: colors.primary },
+  paymentChipText: { color: colors.text, fontWeight: '800', fontSize: 12 },
+  paymentChipTextActive: { color: '#fff' },
+  paymentSummary: { color: colors.primary, fontWeight: '800', fontSize: 12 },
 });

@@ -30,7 +30,7 @@ const createBooking = async (req, res, next) => {
       return res.status(400).json({ success: false, message: error.details[0].message });
     }
 
-    const { eventId, ticketTypeId, quantity } = value;
+    const { eventId, ticketTypeId, quantity, paymentMethod } = value;
     if (!validateObjectId(eventId) || !validateObjectId(ticketTypeId)) {
       return res.status(400).json({ success: false, message: 'Invalid eventId or ticketTypeId' });
     }
@@ -71,6 +71,8 @@ const createBooking = async (req, res, next) => {
       ticketTypeId,
       quantity,
       totalAmount,
+      paymentMethod,
+      paymentStatus: 'Pending',
       status: 'Pending',
     });
 
