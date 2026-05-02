@@ -1,13 +1,31 @@
 import React, { useEffect, useState } from 'react';
-import { Alert, View, Text, StyleSheet, ScrollView, KeyboardAvoidingView, Platform } from 'react-native';
+import {
+  Alert,
+  KeyboardAvoidingView,
+  Platform,
+  ScrollView,
+  TouchableOpacity,
+  View,
+  Text,
+  StyleSheet,
+} from 'react-native';
 import { sessionAgendaApi } from '../../api/sessionAgendaApi';
 import { getErrorMessage } from '../../api/apiClient';
 import AppInput from '../../components/AppInput';
 import AppButton from '../../components/AppButton';
 import ErrorMessage from '../../components/ErrorMessage';
 import LoadingSpinner from '../../components/LoadingSpinner';
-import { colors } from '../../constants/colors';
 import { isRequired, isTimeHHmm } from '../../utils/validators';
+
+const STATUS_OPTIONS = ['Scheduled', 'Completed', 'Cancelled'];
+
+function StatusChip({ label, selected, onPress }) {
+  return (
+    <TouchableOpacity activeOpacity={0.85} onPress={onPress} style={[styles.statusChip, selected && styles.statusChipSelected]}>
+      <Text style={[styles.statusChipText, selected && styles.statusChipTextSelected]}>{label}</Text>
+    </TouchableOpacity>
+  );
+}
 
 export default function EditSessionAgendaScreen({ route, navigation }) {
   const { id } = route.params;
@@ -51,7 +69,7 @@ export default function EditSessionAgendaScreen({ route, navigation }) {
     if (!isRequired(title)) return setError('Title is required.');
     if (!isTimeHHmm(startTime) || !isTimeHHmm(endTime)) return setError('Time must be HH:mm.');
     if (endTime <= startTime) return setError('End time must be after start time.');
-    if (!['Scheduled', 'Completed', 'Cancelled'].includes(status)) return setError('Status must be Scheduled, Completed, or Cancelled.');
+    if (!STATUS_OPTIONS.includes(status)) return setError('Status must be Scheduled, Completed, or Cancelled.');
 
     try {
       setSaving(true);
@@ -68,28 +86,45 @@ export default function EditSessionAgendaScreen({ route, navigation }) {
   if (loading) return <LoadingSpinner />;
 
   return (
-    <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={styles.keyboardView}>
+    <KeyboardAvoidingView style={styles.keyboard} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
       <ScrollView contentContainerStyle={styles.page} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
-        <View style={styles.shell}>
-          <View style={styles.headerCard}>
-            <Text style={styles.kicker}>Edit session</Text>
-            <Text style={styles.title}>Update agenda item</Text>
-            <Text style={styles.subtitle}>Keep session timing, speaker, and status accurate.</Text>
+        <View style={styles.heroCard}>
+          <View style={styles.timeBadge}>
+            <Text style={styles.timeBadgeMain}>{startTime}</Text>
+            <Text style={styles.timeBadgeSub}>{endTime}</Text>
           </View>
-          <View style={styles.formCard}>
-            <Text style={styles.sectionTitle}>Session information</Text>
-            <ErrorMessage message={error} />
-            <AppInput label="Event ID" value={eventId} onChangeText={setEventId} placeholder="Select event / MongoDB ObjectId" />
-            <AppInput label="Title" value={title} onChangeText={setTitle} placeholder="Session title" />
-            <AppInput label="Speaker" value={speaker} onChangeText={setSpeaker} placeholder="Optional speaker name" />
-            <View style={styles.twoColumn}>
-              <View style={styles.fieldColumn}><AppInput label="Start Time" value={startTime} onChangeText={setStartTime} placeholder="10:00" /></View>
-              <View style={styles.fieldColumn}><AppInput label="End Time" value={endTime} onChangeText={setEndTime} placeholder="10:30" /></View>
+          <View style={styles.heroCopy}>
+            <Text style={styles.kicker}>Agenda control</Text>
+            <Text style={styles.title}>Update session</Text>
+            <Text style={styles.subtitle}>Keep time, speaker, and session status accurate for event attendees.</Text>
+          </View>
+        </View>
+
+        <View style={styles.card}>
+          <Text style={styles.sectionTitle}>Session information</Text>
+          <Text style={styles.sectionHint}>Update the details users will see in the event agenda.</Text>
+          <ErrorMessage message={error} />
+
+          <AppInput label="Event ID" value={eventId} onChangeText={setEventId} placeholder="Select event / MongoDB ObjectId" />
+          <AppInput label="Title" value={title} onChangeText={setTitle} placeholder="Session title" />
+          <AppInput label="Speaker" value={speaker} onChangeText={setSpeaker} placeholder="Speaker name" />
+          <View style={styles.twoColumn}>
+            <View style={styles.column}><AppInput label="Start time" value={startTime} onChangeText={setStartTime} placeholder="10:00" /></View>
+            <View style={styles.column}><AppInput label="End time" value={endTime} onChangeText={setEndTime} placeholder="10:30" /></View>
+          </View>
+          <AppInput label="Description" value={description} onChangeText={setDescription} placeholder="Short session description" />
+
+          <View style={styles.statusSection}>
+            <Text style={styles.label}>Status</Text>
+            <View style={styles.statusRow}>
+              {STATUS_OPTIONS.map((option) => (
+                <StatusChip key={option} label={option} selected={status === option} onPress={() => setStatus(option)} />
+              ))}
             </View>
-            <AppInput label="Description" value={description} onChangeText={setDescription} placeholder="Optional session description" />
-            <AppInput label="Status" value={status} onChangeText={setStatus} placeholder="Scheduled / Completed / Cancelled" />
-            <Text style={styles.helperText}>Use one of: Scheduled, Completed, Cancelled.</Text>
-            <AppButton title={saving ? 'Saving...' : 'Save changes'} onPress={onSave} disabled={saving} />
+          </View>
+
+          <View style={styles.actions}>
+            <AppButton title={saving ? 'Saving...' : 'Save session'} onPress={onSave} disabled={saving} />
           </View>
         </View>
       </ScrollView>
@@ -98,16 +133,27 @@ export default function EditSessionAgendaScreen({ route, navigation }) {
 }
 
 const styles = StyleSheet.create({
-  keyboardView: { flex: 1, backgroundColor: colors.background },
-  page: { flexGrow: 1, padding: 20, backgroundColor: colors.background },
-  shell: { width: '100%', maxWidth: 760, alignSelf: 'center' },
-  headerCard: { backgroundColor: colors.card, borderRadius: 28, padding: 22, borderWidth: 1, borderColor: colors.border, marginBottom: 14, shadowColor: colors.shadow, shadowOpacity: 0.1, shadowRadius: 20, shadowOffset: { width: 0, height: 12 }, elevation: 3 },
-  kicker: { color: colors.accent, fontSize: 12, fontWeight: '900', textTransform: 'uppercase', letterSpacing: 1.2 },
-  title: { marginTop: 7, color: colors.text, fontSize: 29, fontWeight: '900', lineHeight: 35, letterSpacing: -0.5 },
-  subtitle: { color: colors.muted, marginTop: 8, lineHeight: 22 },
-  formCard: { backgroundColor: colors.card, borderRadius: 28, padding: 20, borderWidth: 1, borderColor: colors.border },
-  sectionTitle: { color: colors.text, fontSize: 19, fontWeight: '900', marginBottom: 12 },
-  twoColumn: { flexDirection: 'row', gap: 12, flexWrap: 'wrap' },
-  fieldColumn: { flex: 1, minWidth: 220 },
-  helperText: { color: colors.muted, fontSize: 12, lineHeight: 18, marginTop: -4, marginBottom: 12 },
+  keyboard: { flex: 1, backgroundColor: '#FFF7FB' },
+  page: { flexGrow: 1, padding: 20, paddingBottom: 34, backgroundColor: '#FFF7FB' },
+  heroCard: { backgroundColor: '#6C5CE7', borderRadius: 32, padding: 22, flexDirection: 'row', alignItems: 'center', marginBottom: 18, shadowColor: '#6C5CE7', shadowOffset: { width: 0, height: 14 }, shadowOpacity: 0.22, shadowRadius: 22, elevation: 8 },
+  timeBadge: { width: 76, height: 76, borderRadius: 24, backgroundColor: 'rgba(255,255,255,0.18)', alignItems: 'center', justifyContent: 'center', marginRight: 16, borderWidth: 1, borderColor: 'rgba(255,255,255,0.2)' },
+  timeBadgeMain: { color: '#FFFFFF', fontSize: 17, fontWeight: '900' },
+  timeBadgeSub: { color: '#EDE9FE', fontSize: 12, fontWeight: '700', marginTop: 2 },
+  heroCopy: { flex: 1 },
+  kicker: { color: '#EDE9FE', fontSize: 12, fontWeight: '900', letterSpacing: 1.2, textTransform: 'uppercase' },
+  title: { color: '#FFFFFF', fontSize: 27, fontWeight: '900', marginTop: 6 },
+  subtitle: { color: '#F4F1FF', fontSize: 14, lineHeight: 21, marginTop: 8 },
+  card: { backgroundColor: '#FFFFFF', borderRadius: 28, padding: 20, borderWidth: 1, borderColor: '#ECE7FF', shadowColor: '#2D0A35', shadowOffset: { width: 0, height: 12 }, shadowOpacity: 0.08, shadowRadius: 22, elevation: 5 },
+  sectionTitle: { color: '#1F1D2B', fontSize: 20, fontWeight: '900' },
+  sectionHint: { color: '#7A7185', fontSize: 13, lineHeight: 19, marginTop: 4, marginBottom: 12 },
+  twoColumn: { flexDirection: 'row', marginHorizontal: -5 },
+  column: { flex: 1, marginHorizontal: 5 },
+  statusSection: { marginTop: 12 },
+  label: { color: '#1F1D2B', fontSize: 14, fontWeight: '800', marginBottom: 10 },
+  statusRow: { flexDirection: 'row', flexWrap: 'wrap' },
+  statusChip: { paddingHorizontal: 14, paddingVertical: 10, borderRadius: 16, backgroundColor: '#F5F3FF', borderWidth: 1, borderColor: '#DDD6FE', marginRight: 8, marginBottom: 8 },
+  statusChipSelected: { backgroundColor: '#6C5CE7', borderColor: '#6C5CE7' },
+  statusChipText: { color: '#5B21B6', fontSize: 13, fontWeight: '800' },
+  statusChipTextSelected: { color: '#FFFFFF' },
+  actions: { marginTop: 18 },
 });
