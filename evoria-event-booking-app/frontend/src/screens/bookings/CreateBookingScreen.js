@@ -10,6 +10,7 @@ import {
   TouchableOpacity,
   Image,
   SafeAreaView,
+  TextInput,
 } from 'react-native';
 import { eventApi } from '../../api/eventApi';
 import { bookingApi } from '../../api/bookingApi';
@@ -18,19 +19,26 @@ import { sessionAgendaApi } from '../../api/sessionAgendaApi';
 import { API_BASE_URL } from '../../config/apiConfig';
 import { getErrorMessage } from '../../api/apiClient';
 import AppInput from '../../components/AppInput';
-import AppButton from '../../components/AppButton';
 import ErrorMessage from '../../components/ErrorMessage';
 import { bookingPaymentMethods } from '../../constants/status';
 import {
-  isCardHolderName,
-  isCardExpiryValid,
-  isCvvValid,
-  isLuhnValid,
   isMobileMoneyPhone,
   isPositiveInt,
   isRequired,
   normalizeDigits,
 } from '../../utils/validators';
+import {
+  detectCardBrand,
+  formatCardNumber,
+  isCardExpired,
+  isLuhnValid,
+  isValidCardholderName,
+  isValidCvv,
+  isValidExpiryMonth,
+  isValidExpiryYear,
+  maskCardNumber,
+  normalizeCardNumber,
+} from '../../utils/paymentValidation';
 
 const UPLOADS_BASE = API_BASE_URL && API_BASE_URL.endsWith('/api') ? API_BASE_URL.slice(0, -4) : API_BASE_URL || 'http://localhost:5000';
 const UI = { primary: '#EC168C', purple: '#7C3AED', background: '#FFF7FC', surface: '#FFFFFF', text: '#111827', muted: '#7C7C8A', border: '#F0DDEB', softPink: '#FFE7F4' };
@@ -49,6 +57,27 @@ function OptionChip({ label, selected, onPress }) {
     <TouchableOpacity onPress={onPress} style={[styles.optionChip, selected && styles.optionChipActive]}>
       <Text style={[styles.optionChipText, selected && styles.optionChipTextActive]}>{label}</Text>
     </TouchableOpacity>
+  );
+}
+
+function PaymentField({ label, value, onChangeText, placeholder, keyboardType, secureTextEntry, maxLength, helperText, error }) {
+  return (
+    <View style={styles.fieldBlock}>
+      <Text style={styles.fieldLabel}>{label}</Text>
+      <TextInput
+        value={value}
+        onChangeText={onChangeText}
+        placeholder={placeholder}
+        placeholderTextColor={UI.muted}
+        keyboardType={keyboardType}
+        secureTextEntry={secureTextEntry}
+        maxLength={maxLength}
+        autoCapitalize="none"
+        style={[styles.fieldInput, error && styles.fieldInputError]}
+      />
+      {helperText ? <Text style={styles.fieldHelper}>{helperText}</Text> : null}
+      {error ? <Text style={styles.fieldError}>{error}</Text> : null}
+    </View>
   );
 }
 
@@ -78,6 +107,75 @@ export default function CreateBookingScreen({ route, navigation }) {
   const selectedTicket = useMemo(() => ticketTypes.find((t) => t._id === ticketTypeId), [ticketTypes, ticketTypeId]);
   const maxQuantity = selectedTicket ? Number(selectedTicket.availableQuantity || 0) : null;
   const totalAmount = selectedTicket ? Number(selectedTicket.price || 0) * Number(quantity || 0) : 0;
+  const normalizedCardNumber = normalizeCardNumber(cardNumber);
+  const cardBrand = detectCardBrand(normalizedCardNumber);
+  const formattedCardNumber = formatCardNumber(normalizedCardNumber);
+  const cardLast4 = normalizedCardNumber.slice(-4);
+  const cvvLength = cardBrand === 'American Express' ? 4 : 3;
+
+  const cardValidationErrors = useMemo(() => {
+    if (paymentMethod !== 'Card') return [];
+
+    const errors = [];
+    const trimmedName = String(cardHolderName || '').trim();
+
+    if (!isValidCardholderName(trimmedName)) {
+      errors.push('Cardholder name can only use letters, spaces, hyphen, apostrophe, and dot.');
+    }
+
+    if (!normalizedCardNumber) {
+      errors.push('Card number is required.');
+    } else if (cardBrand === 'Visa' || cardBrand === 'Mastercard') {
+      if (normalizedCardNumber.length !== 16) {
+        errors.push('Visa and Mastercard numbers must contain 16 digits.');
+      }
+    } else if (cardBrand === 'American Express') {
+      if (normalizedCardNumber.length !== 15) {
+        errors.push('American Express numbers must contain 15 digits.');
+      }
+    } else if (normalizedCardNumber.length < 13 || normalizedCardNumber.length > 19) {
+      errors.push('Card number must contain 13 to 19 digits.');
+    }
+
+    if (normalizedCardNumber && !isLuhnValid(normalizedCardNumber)) {
+      errors.push('Card number failed the Luhn check.');
+    }
+
+    if (!isValidExpiryMonth(cardExpiryMonth)) {
+      errors.push('Expiry month must be between 01 and 12.');
+    }
+
+    if (!isValidExpiryYear(cardExpiryYear)) {
+      errors.push('Expiry year must be the current year or a future year.');
+    }
+
+    if (isValidExpiryMonth(cardExpiryMonth) && isValidExpiryYear(cardExpiryYear) && isCardExpired(cardExpiryMonth, cardExpiryYear)) {
+      errors.push('Card expiry date has passed.');
+    }
+
+    if (!isValidCvv(cardCvv, cardBrand)) {
+      errors.push(`CVV must be ${cvvLength} digits for ${cardBrand === 'American Express' ? 'American Express' : 'this card'}.`);
+    }
+
+    return errors;
+  }, [cardBrand, cardCvv, cardExpiryMonth, cardExpiryYear, cardHolderName, normalizedCardNumber, paymentMethod, cvvLength]);
+
+  const mobileMoneyValid = useMemo(() => {
+    if (paymentMethod !== 'Mobile Money') return true;
+    return isRequired(mobileMoneyProvider) && isMobileMoneyPhone(mobileMoneyPhone);
+  }, [mobileMoneyPhone, mobileMoneyProvider, paymentMethod]);
+
+  const bookingBasicsValid = useMemo(() => {
+    if (!isRequired(eventId)) return false;
+    if (!isRequired(ticketTypeId)) return false;
+    if (!bookableEventIds.includes(eventId)) return false;
+    if (!ticketTypes.some((ticket) => ticket._id === ticketTypeId)) return false;
+    if (!isPositiveInt(quantity)) return false;
+    if (maxQuantity != null && Number(quantity) > maxQuantity) return false;
+    return true;
+  }, [bookableEventIds, eventId, maxQuantity, quantity, ticketTypes, ticketTypeId]);
+
+  const canConfirmBooking = bookingBasicsValid && (paymentMethod === 'Card' ? cardValidationErrors.length === 0 : mobileMoneyValid);
 
   useEffect(() => {
     const load = async () => {
@@ -144,14 +242,17 @@ export default function CreateBookingScreen({ route, navigation }) {
 
     let paymentDetails = undefined;
     if (paymentMethod === 'Card') {
-      const sanitizedCardNumber = normalizeDigits(cardNumber);
-      const sanitizedCvv = normalizeDigits(cardCvv);
-      if (!isCardHolderName(cardHolderName)) return setError('Cardholder name must use letters and common punctuation only.');
-      if (!/^\d{13,19}$/.test(sanitizedCardNumber)) return setError('Card number must contain 13 to 19 digits.');
-      if (!isLuhnValid(sanitizedCardNumber)) return setError('Card number is invalid.');
-      if (!isCardExpiryValid(cardExpiryMonth, cardExpiryYear)) return setError('Card expiry date must be valid and not expired.');
-      if (!isCvvValid(sanitizedCvv, sanitizedCardNumber)) return setError('CVV is invalid for the selected card.');
-      paymentDetails = { cardHolderName: cardHolderName.trim(), cardNumber: sanitizedCardNumber, expiryMonth: cardExpiryMonth, expiryYear: cardExpiryYear, cvv: sanitizedCvv };
+      if (cardValidationErrors.length) {
+        return setError(cardValidationErrors[0]);
+      }
+
+      // Only send masked card metadata to the backend for the demo booking flow.
+      paymentDetails = {
+        cardBrand,
+        last4: cardLast4,
+        expiryMonth: cardExpiryMonth,
+        expiryYear: cardExpiryYear,
+      };
     }
     if (paymentMethod === 'Mobile Money') {
       if (!isRequired(mobileMoneyProvider)) return setError('Mobile money provider is required.');
@@ -168,6 +269,7 @@ export default function CreateBookingScreen({ route, navigation }) {
       setError(getErrorMessage(e));
     } finally {
       setSaving(false);
+      setCardCvv('');
     }
   };
 
@@ -261,13 +363,75 @@ export default function CreateBookingScreen({ route, navigation }) {
               </View>
               {paymentMethod === 'Card' ? (
                 <View style={styles.paymentFields}>
-                  <AppInput label="Cardholder Name" value={cardHolderName} onChangeText={setCardHolderName} placeholder="Name on card" />
-                  <AppInput label="Card Number" value={cardNumber} onChangeText={setCardNumber} placeholder="1234 5678 9012 3456" keyboardType="number-pad" />
-                  <View style={styles.rowFields}>
-                    <View style={styles.flexField}><AppInput label="MM" value={cardExpiryMonth} onChangeText={setCardExpiryMonth} placeholder="MM" keyboardType="number-pad" /></View>
-                    <View style={styles.flexField}><AppInput label="YYYY" value={cardExpiryYear} onChangeText={setCardExpiryYear} placeholder="YYYY" keyboardType="number-pad" /></View>
-                    <View style={styles.flexField}><AppInput label="CVV" value={cardCvv} onChangeText={setCardCvv} placeholder="CVV" keyboardType="number-pad" secureTextEntry /></View>
+                  <View style={styles.cardSummaryCard}>
+                    <Text style={styles.cardSummaryLabel}>Detected Card Type</Text>
+                    <View style={styles.cardSummaryRow}>
+                      <Text style={styles.cardSummaryValue}>{cardBrand}</Text>
+                      <Text style={styles.cardSummaryMasked}>{maskCardNumber(normalizedCardNumber)}</Text>
+                    </View>
+                    <Text style={styles.cardSummaryHint}>We only send masked card details to the backend.</Text>
                   </View>
+
+                  <PaymentField
+                    label="Cardholder Name"
+                    value={cardHolderName}
+                    onChangeText={setCardHolderName}
+                    placeholder="Name on card"
+                    error={paymentMethod === 'Card' && !isValidCardholderName(cardHolderName) ? 'Use letters, spaces, hyphen, apostrophe, or dot only.' : ''}
+                  />
+                  <PaymentField
+                    label="Card Number"
+                    value={formattedCardNumber}
+                    onChangeText={(value) => {
+                      const digits = normalizeCardNumber(value);
+                      const brand = detectCardBrand(digits);
+                      const limit = brand === 'American Express' ? 15 : brand === 'Visa' || brand === 'Mastercard' ? 16 : 19;
+                      setCardNumber(digits.slice(0, limit));
+                    }}
+                    placeholder="1234 5678 9012 3456"
+                    keyboardType="number-pad"
+                    helperText={`Visa/Mastercard: 16 digits · American Express: 15 digits`}
+                  />
+                  <Text style={styles.brandText}>Detected brand: {cardBrand}</Text>
+                  <View style={styles.rowFields}>
+                    <View style={styles.flexField}>
+                      <PaymentField
+                        label="MM"
+                        value={cardExpiryMonth}
+                        onChangeText={(value) => setCardExpiryMonth(normalizeDigits(value).slice(0, 2))}
+                        placeholder="MM"
+                        keyboardType="number-pad"
+                        maxLength={2}
+                      />
+                    </View>
+                    <View style={styles.flexField}>
+                      <PaymentField
+                        label="YYYY"
+                        value={cardExpiryYear}
+                        onChangeText={(value) => setCardExpiryYear(normalizeDigits(value).slice(0, 4))}
+                        placeholder="YYYY"
+                        keyboardType="number-pad"
+                        maxLength={4}
+                      />
+                    </View>
+                    <View style={styles.flexField}>
+                      <PaymentField
+                        label="CVV"
+                        value={cardCvv}
+                        onChangeText={(value) => setCardCvv(normalizeDigits(value).slice(0, cvvLength))}
+                        placeholder="CVV"
+                        keyboardType="number-pad"
+                        secureTextEntry
+                        maxLength={cvvLength}
+                        helperText={`Use ${cvvLength} digits for ${cardBrand === 'American Express' ? 'American Express' : 'Visa/Mastercard'}.`}
+                      />
+                    </View>
+                  </View>
+                  {cardValidationErrors.length ? (
+                    <View style={styles.validationBox}>
+                      {cardValidationErrors.map((message) => <Text key={message} style={styles.validationText}>• {message}</Text>)}
+                    </View>
+                  ) : null}
                 </View>
               ) : null}
               {paymentMethod === 'Mobile Money' ? (
@@ -284,7 +448,7 @@ export default function CreateBookingScreen({ route, navigation }) {
               <Text style={styles.totalLabel}>Total Amount</Text>
               <Text style={styles.totalValue}>NPR {Number(totalAmount || 0).toFixed(0)}</Text>
             </View>
-            <TouchableOpacity style={[styles.confirmButton, saving && styles.confirmButtonDisabled]} disabled={saving} onPress={onSave}>
+            <TouchableOpacity style={[styles.confirmButton, (saving || !canConfirmBooking) && styles.confirmButtonDisabled]} disabled={saving || !canConfirmBooking} onPress={onSave}>
               <Text style={styles.confirmButtonText}>{saving ? 'Confirming...' : 'Confirm Booking'}</Text>
             </TouchableOpacity>
           </View>
@@ -346,6 +510,21 @@ const styles = StyleSheet.create({
   optionChipText: { color: UI.text, fontWeight: '800', fontSize: 12 },
   optionChipTextActive: { color: '#fff' },
   paymentFields: { marginTop: 14 },
+  cardSummaryCard: { backgroundColor: '#FFF8FC', borderWidth: 1, borderColor: UI.border, borderRadius: 18, padding: 14, marginBottom: 14 },
+  cardSummaryLabel: { color: UI.muted, fontSize: 11, fontWeight: '800', textTransform: 'uppercase', letterSpacing: 0.4 },
+  cardSummaryRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 8, gap: 12 },
+  cardSummaryValue: { color: UI.text, fontSize: 16, fontWeight: '900', flex: 1 },
+  cardSummaryMasked: { color: UI.primary, fontSize: 13, fontWeight: '900' },
+  cardSummaryHint: { color: UI.muted, fontSize: 11, fontWeight: '700', marginTop: 8, lineHeight: 16 },
+  brandText: { color: UI.primary, fontSize: 12, fontWeight: '900', marginTop: 6, marginBottom: 6 },
+  fieldBlock: { marginBottom: 12 },
+  fieldLabel: { marginBottom: 8, color: UI.text, fontWeight: '800', fontSize: 13 },
+  fieldInput: { backgroundColor: '#fff', borderWidth: 1, borderColor: UI.border, borderRadius: 18, paddingHorizontal: 14, paddingVertical: 14, color: UI.text, shadowColor: '#9D174D', shadowOpacity: 0.08, shadowRadius: 12, shadowOffset: { width: 0, height: 6 }, elevation: 2 },
+  fieldInputError: { borderColor: '#EF4444' },
+  fieldHelper: { color: UI.muted, fontSize: 11, fontWeight: '700', marginTop: 6, lineHeight: 16 },
+  fieldError: { color: '#EF4444', fontSize: 11, fontWeight: '800', marginTop: 6, lineHeight: 16 },
+  validationBox: { marginTop: 4, padding: 12, borderRadius: 16, backgroundColor: '#FFF1F5', borderWidth: 1, borderColor: '#F8B4D9' },
+  validationText: { color: '#9D174D', fontSize: 12, fontWeight: '700', lineHeight: 18 },
   rowFields: { flexDirection: 'row', gap: 8 },
   flexField: { flex: 1 },
   bottomBar: { position: 'absolute', left: 0, right: 0, bottom: 0, backgroundColor: '#fff', borderTopWidth: 1, borderTopColor: UI.border, paddingHorizontal: 18, paddingTop: 13, paddingBottom: 24, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 14 },
