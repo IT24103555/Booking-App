@@ -91,6 +91,7 @@ export default function TicketTypeDetailsScreen({ route, navigation }) {
 
             <AppCard>
               <Text style={styles.sectionTitle}>Details</Text>
+              <DetailRow label="Event" value={item.eventId?.title || 'Event not assigned'} />
               <DetailRow label="Description" value={item.description || 'No description provided.'} />
               <DetailRow label="Price" value={formatCurrency(item.price)} />
               <DetailRow label="Total Quantity" value={String(item.totalQuantity)} />

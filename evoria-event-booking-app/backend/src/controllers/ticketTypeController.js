@@ -1,6 +1,14 @@
 const TicketType = require('../models/TicketType');
+const Event = require('../models/Event');
 const validateObjectId = require('../utils/validateObjectId');
 const { createTicketTypeSchema, updateTicketTypeSchema } = require('../validations/ticketTypeValidation');
+
+const syncTicketTypeWithEvent = async (ticketTypeId, oldEventId, newEventId) => {
+  if (oldEventId && oldEventId.toString() !== newEventId.toString()) {
+    await Event.findByIdAndUpdate(oldEventId, { $pull: { ticketTypeIds: ticketTypeId } });
+  }
+  await Event.findByIdAndUpdate(newEventId, { $addToSet: { ticketTypeIds: ticketTypeId } });
+};
 
 // POST /api/ticket-types
 const createTicketType = async (req, res, next) => {
@@ -13,8 +21,19 @@ const createTicketType = async (req, res, next) => {
       return res.status(400).json({ success: false, message: msg });
     }
 
+    if (!validateObjectId(value.eventId)) {
+      return res.status(400).json({ success: false, message: 'Invalid event id' });
+    }
+
+    const event = await Event.findById(value.eventId);
+    if (!event) {
+      return res.status(404).json({ success: false, message: 'Event not found' });
+    }
+
     const created = await TicketType.create(value);
-    return res.status(201).json({ success: true, message: 'Ticket type created', data: created });
+    await Event.findByIdAndUpdate(event._id, { $addToSet: { ticketTypeIds: created._id } });
+    const populated = await TicketType.findById(created._id).populate('eventId');
+    return res.status(201).json({ success: true, message: 'Ticket type created', data: populated });
   } catch (err) {
     next(err);
   }
@@ -23,7 +42,15 @@ const createTicketType = async (req, res, next) => {
 // GET /api/ticket-types
 const getAllTicketTypes = async (req, res, next) => {
   try {
-    const items = await TicketType.find().sort({ createdAt: -1 });
+    const { eventId } = req.query;
+    const filter = {};
+    if (eventId) {
+      if (!validateObjectId(eventId)) {
+        return res.status(400).json({ success: false, message: 'Invalid event id' });
+      }
+      filter.eventId = eventId;
+    }
+    const items = await TicketType.find(filter).populate('eventId').sort({ createdAt: -1 });
     return res.status(200).json({ success: true, message: 'Ticket types fetched', data: items });
   } catch (err) {
     next(err);
@@ -37,7 +64,7 @@ const getSingleTicketType = async (req, res, next) => {
     if (!validateObjectId(id)) {
       return res.status(400).json({ success: false, message: 'Invalid ticket type id' });
     }
-    const item = await TicketType.findById(id);
+    const item = await TicketType.findById(id).populate('eventId');
     if (!item) {
       return res.status(404).json({ success: false, message: 'Ticket type not found' });
     }
@@ -63,9 +90,36 @@ const updateTicketType = async (req, res, next) => {
       return res.status(400).json({ success: false, message: msg });
     }
 
-    const updated = await TicketType.findByIdAndUpdate(id, value, { new: true, runValidators: true });
+    const current = await TicketType.findById(id);
+    if (!current) {
+      return res.status(404).json({ success: false, message: 'Ticket type not found' });
+    }
+
+    let nextEventId = current.eventId;
+    if (value.eventId !== undefined) {
+      if (!validateObjectId(value.eventId)) {
+        return res.status(400).json({ success: false, message: 'Invalid event id' });
+      }
+      const nextEvent = await Event.findById(value.eventId);
+      if (!nextEvent) {
+        return res.status(404).json({ success: false, message: 'Event not found' });
+      }
+      nextEventId = nextEvent._id;
+    }
+
+    const updated = await TicketType.findByIdAndUpdate(
+      id,
+      { ...value, eventId: nextEventId },
+      { new: true, runValidators: true }
+    ).populate('eventId');
     if (!updated) {
       return res.status(404).json({ success: false, message: 'Ticket type not found' });
+    }
+
+    if (value.eventId !== undefined && current.eventId?.toString() !== nextEventId.toString()) {
+      await syncTicketTypeWithEvent(updated._id, current.eventId, nextEventId);
+    } else if (!current.eventId) {
+      await Event.findByIdAndUpdate(nextEventId, { $addToSet: { ticketTypeIds: updated._id } });
     }
 
     return res.status(200).json({ success: true, message: 'Ticket type updated', data: updated });
@@ -84,6 +138,9 @@ const deleteTicketType = async (req, res, next) => {
     const deleted = await TicketType.findByIdAndDelete(id);
     if (!deleted) {
       return res.status(404).json({ success: false, message: 'Ticket type not found' });
+    }
+    if (deleted.eventId) {
+      await Event.findByIdAndUpdate(deleted.eventId, { $pull: { ticketTypeIds: deleted._id } });
     }
     return res.status(200).json({ success: true, message: 'Ticket type deleted' });
   } catch (err) {

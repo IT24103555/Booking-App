@@ -96,6 +96,7 @@ export default function EditEventScreen({ route, navigation }) {
             </View>
             <AppInput label="Venue ID" value={venueId} onChangeText={setVenueId} placeholder="Select venue / MongoDB ObjectId" />
             <Text style={styles.helperText}>Senior UX note: replace this ID field with a venue selector when venue lookup API is connected.</Text>
+
             <AppButton title={saving ? 'Saving...' : 'Save changes'} onPress={onSave} disabled={saving} />
           </View>
         </View>

@@ -2,6 +2,7 @@ const mongoose = require('mongoose');
 
 const ticketTypeSchema = new mongoose.Schema(
   {
+    eventId: { type: mongoose.Schema.Types.ObjectId, ref: 'Event', required: true },
     name: { type: String, required: true, trim: true },
     description: { type: String, default: '' },
     price: { type: Number, required: true, min: 0 },

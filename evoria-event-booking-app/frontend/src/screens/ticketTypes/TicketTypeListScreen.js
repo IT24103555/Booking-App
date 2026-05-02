@@ -55,7 +55,7 @@ export default function TicketTypeListScreen({ navigation }) {
     if (!value) return items;
 
     return items.filter((item) => {
-      const searchable = `${item.name || ''} ${item.description || ''} ${item.status || ''}`.toLowerCase();
+      const searchable = `${item.name || ''} ${item.description || ''} ${item.status || ''} ${item.eventId?.title || ''}`.toLowerCase();
       return searchable.includes(value);
     });
   }, [items, search]);
@@ -134,6 +134,7 @@ export default function TicketTypeListScreen({ navigation }) {
                     <View style={styles.cardCopy}>
                       <Text style={styles.title}>{item.name}</Text>
                       <Text style={styles.subtitle}>{formatCurrency(item.price)}</Text>
+                      <Text style={styles.eventLabel} numberOfLines={1}>{item.eventId?.title || 'Event not assigned'}</Text>
                     </View>
                     <StatusPill status={item.status} />
                   </View>
@@ -241,6 +242,7 @@ const styles = StyleSheet.create({
   cardCopy: { flex: 1 },
   title: { fontWeight: '900', color: colors.text, fontSize: 16 },
   subtitle: { marginTop: 4, color: colors.primary, fontWeight: '800' },
+  eventLabel: { marginTop: 6, color: colors.muted, fontSize: 12, fontWeight: '700' },
   description: { marginTop: 12, color: colors.muted, lineHeight: 20 },
   meta: { color: colors.muted, fontSize: 12, fontWeight: '700' },
   metaStrong: { color: colors.text, fontSize: 12, fontWeight: '900' },

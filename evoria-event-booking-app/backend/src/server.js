@@ -14,6 +14,7 @@ const venueRoutes = require('./routes/venueRoutes');
 const eventRoutes = require('./routes/eventRoutes');
 const bookingRoutes = require('./routes/bookingRoutes');
 const sessionAgendaRoutes = require('./routes/sessionAgendaRoutes');
+const chatbotRoutes = require('./routes/chatbotRoutes');
 const { notFound, errorHandler } = require('./middleware/errorMiddleware');
 
 // Load environment variables from .env (Render/Railway will inject env vars in production)
@@ -93,6 +94,7 @@ app.use('/api/venues', venueRoutes);
 app.use('/api/events', eventRoutes);
 app.use('/api/bookings', bookingRoutes);
 app.use('/api/session-agendas', sessionAgendaRoutes);
+app.use('/api/chatbot', chatbotRoutes);
 
 // 404 + central error handler
 app.use(notFound);

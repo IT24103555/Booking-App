@@ -1,6 +1,10 @@
 const Joi = require('joi');
 
 const createTicketTypeSchema = Joi.object({
+  eventId: Joi.string().required().messages({
+    'any.required': 'Event is required',
+    'string.empty': 'Event is required',
+  }),
   name: Joi.string().trim().required().messages({
     'any.required': 'Name is required',
     'string.empty': 'Name is required',
@@ -30,6 +34,7 @@ const createTicketTypeSchema = Joi.object({
 }, 'AvailableQuantity <= TotalQuantity');
 
 const updateTicketTypeSchema = Joi.object({
+  eventId: Joi.string(),
   name: Joi.string().trim(),
   description: Joi.string().allow('', null),
   price: Joi.number().min(0),

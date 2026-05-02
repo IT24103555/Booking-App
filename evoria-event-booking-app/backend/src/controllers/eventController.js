@@ -127,6 +127,7 @@ const updateEvent = async (req, res, next) => {
       }
     }
 
+
     const updated = await Event.findByIdAndUpdate(id, value, { new: true, runValidators: true })
       .populate('venueId')
       .populate('ticketTypeIds');
