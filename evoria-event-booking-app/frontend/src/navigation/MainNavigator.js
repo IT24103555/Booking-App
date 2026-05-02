@@ -3,7 +3,6 @@ import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 
 import HomeScreen from '../screens/common/HomeScreen';
-import EventListScreen from '../screens/events/EventListScreen';
 import EventDetailsScreen from '../screens/events/EventDetailsScreen';
 import BookingListScreen from '../screens/bookings/BookingListScreen';
 import BookingDetailsScreen from '../screens/bookings/BookingDetailsScreen';
@@ -17,7 +16,6 @@ function MainTabs() {
   return (
     <Tab.Navigator>
       <Tab.Screen name="Home" component={HomeScreen} />
-      <Tab.Screen name="Events" component={EventListScreen} />
       <Tab.Screen name="MyBookings" component={BookingListScreen} options={{ title: 'Bookings' }} />
       <Tab.Screen name="Profile" component={ProfileScreen} />
     </Tab.Navigator>

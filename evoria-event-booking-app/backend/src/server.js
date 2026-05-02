@@ -25,7 +25,12 @@ connectDB();
 const app = express();
 
 // Security + logs (beginner-friendly defaults)
-app.use(helmet());
+// Allow images/assets to be loaded by the web app running on a different local origin (port 8083).
+app.use(
+  helmet({
+    crossOriginResourcePolicy: { policy: 'cross-origin' },
+  })
+);
 app.use(morgan('dev'));
 
 // Enable CORS so the React Native app can call the API

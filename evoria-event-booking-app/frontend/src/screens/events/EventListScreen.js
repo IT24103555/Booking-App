@@ -8,6 +8,9 @@ import ErrorMessage from '../../components/ErrorMessage';
 import EmptyState from '../../components/EmptyState';
 import { colors } from '../../constants/colors';
 import { formatDate } from '../../utils/formatDate';
+import { API_BASE_URL } from '../../config/apiConfig';
+
+const UPLOADS_BASE = API_BASE_URL && API_BASE_URL.endsWith('/api') ? API_BASE_URL.slice(0, -4) : API_BASE_URL || 'http://localhost:5000';
 import { AuthContext } from '../../context/AuthContext';
 
 function StatusPill({ status }) {
@@ -29,9 +32,11 @@ function EventGridCard({ item, onPress, isStaff }) {
     <TouchableOpacity activeOpacity={0.85} onPress={onPress} style={styles.gridCard}>
       {item.image ? (
         <Image 
-          source={{ uri: `http://localhost:5000${item.image}` }} 
+          source={{ uri: encodeURI(`${UPLOADS_BASE}${item.image}`) }} 
           style={styles.gridImage}
           resizeMode="cover"
+          onLoad={() => console.log('Image loaded', `${UPLOADS_BASE}${item.image}`)}
+          onError={(e) => console.warn('Image load error', e.nativeEvent?.error, `${UPLOADS_BASE}${item.image}`)}
         />
       ) : (
         <View style={[styles.gridImage, { backgroundColor: colors.primary }]} />

@@ -1,5 +1,5 @@
 import React, { useContext, useEffect, useState } from 'react';
-import { Alert, View, Text, StyleSheet, ScrollView } from 'react-native';
+import { Alert, View, Text, StyleSheet, ScrollView, Image } from 'react-native';
 import { eventApi } from '../../api/eventApi';
 import { getErrorMessage } from '../../api/apiClient';
 import AppCard from '../../components/AppCard';
@@ -11,6 +11,9 @@ import { confirmDialog } from '../../components/ConfirmDialog';
 import { colors } from '../../constants/colors';
 import { formatDate } from '../../utils/formatDate';
 import { AuthContext } from '../../context/AuthContext';
+import { API_BASE_URL } from '../../config/apiConfig';
+
+const UPLOADS_BASE = API_BASE_URL && API_BASE_URL.endsWith('/api') ? API_BASE_URL.slice(0, -4) : API_BASE_URL || 'http://localhost:5000';
 
 function DetailRow({ label, value }) {
   return (
@@ -89,9 +92,17 @@ export default function EventDetailsScreen({ route, navigation }) {
               <Text style={styles.subtitle}>{formatDate(item.eventDate)} · {item.startTime} - {item.endTime}</Text>
             </View>
 
+            {item.image ? (
+              <Image
+                source={{ uri: encodeURI(`${UPLOADS_BASE}${item.image}`) }}
+                style={styles.eventImage}
+                resizeMode="cover"
+              />
+            ) : null}
+
             <AppCard>
               <Text style={styles.sectionTitle}>Overview</Text>
-              <DetailRow label="Venue" value={item.venue?.name || item.venue} />
+              <DetailRow label="Venue" value={item.venueId?.name || '-'} />
               <DetailRow label="Date" value={formatDate(item.eventDate)} />
               <DetailRow label="Time" value={`${item.startTime || '-'} - ${item.endTime || '-'}`} />
               <DetailRow label="Description" value={item.description || 'No description provided.'} />
@@ -127,6 +138,13 @@ const styles = StyleSheet.create({
   statusPill: { backgroundColor: 'rgba(255,255,255,0.18)', borderRadius: 999, paddingHorizontal: 12, paddingVertical: 7 },
   statusText: { color: '#fff', fontWeight: '900', fontSize: 12 },
   sectionTitle: { color: colors.text, fontWeight: '900', fontSize: 18, marginBottom: 12 },
+  eventImage: {
+    width: '100%',
+    height: 280,
+    borderRadius: 20,
+    marginBottom: 14,
+    backgroundColor: colors.primary,
+  },
   detailRow: { paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: colors.border },
   detailLabel: { color: colors.muted, fontWeight: '800', marginBottom: 5, fontSize: 12, textTransform: 'uppercase', letterSpacing: 0.6 },
   detailValue: { color: colors.text, fontWeight: '700', lineHeight: 21 },

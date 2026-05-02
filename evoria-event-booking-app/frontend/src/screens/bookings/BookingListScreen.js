@@ -51,6 +51,10 @@ function BookingCard({ item, onPress }) {
           <Text style={styles.metaLabel}>Total</Text>
           <Text style={styles.metaValue}>${item.totalAmount?.toFixed(2) || '0.00'}</Text>
         </View>
+          <View style={styles.metaItem}>
+            <Text style={styles.metaLabel}>Payment</Text>
+            <Text style={styles.metaValue} numberOfLines={1}>{item.paymentMethod || '—'}</Text>
+          </View>
         <View style={styles.metaItem}>
           <Text style={styles.metaLabel}>Date</Text>
           <Text style={styles.metaValue}>{formatDate(item.eventId?.eventDate || item.createdAt).split(',')[0]}</Text>

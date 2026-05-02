@@ -7,6 +7,8 @@ const bookingSchema = new mongoose.Schema(
     ticketTypeId: { type: mongoose.Schema.Types.ObjectId, ref: 'TicketType', required: true },
     quantity: { type: Number, required: true, min: 1 },
     totalAmount: { type: Number, required: true, min: 0 },
+    paymentMethod: { type: String, enum: ['Pay at Venue', 'Card', 'Mobile Money'], default: 'Pay at Venue' },
+    paymentStatus: { type: String, enum: ['Pending', 'Paid', 'Failed'], default: 'Pending' },
     bookingDate: { type: Date, default: Date.now },
     status: { type: String, enum: ['Pending', 'Confirmed', 'Cancelled'], default: 'Pending' },
   },

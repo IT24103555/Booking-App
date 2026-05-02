@@ -2,6 +2,9 @@ import React, { useEffect, useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Image, TextInput } from 'react-native';
 import { colors } from '../../constants/colors';
 import { eventApi } from '../../api/eventApi';
+import { API_BASE_URL } from '../../config/apiConfig';
+
+const UPLOADS_BASE = API_BASE_URL && API_BASE_URL.endsWith('/api') ? API_BASE_URL.slice(0, -4) : API_BASE_URL || 'http://localhost:5000';
 
 const CATEGORIES = [
   { id: 'all', label: 'All Events', icon: '🎯' },
@@ -17,9 +20,11 @@ function FeaturedEventCard({ event, onPress }) {
     <TouchableOpacity activeOpacity={0.85} onPress={onPress} style={styles.featuredCard}>
       {event.image ? (
         <Image 
-          source={{ uri: `http://localhost:5000${event.image}` }} 
+          source={{ uri: encodeURI(`${UPLOADS_BASE}${event.image}`) }} 
           style={styles.featuredImage}
           resizeMode="cover"
+          onLoad={() => console.log('Image loaded', `${UPLOADS_BASE}${event.image}`)}
+          onError={(e) => console.warn('Image load error', e.nativeEvent?.error, `${UPLOADS_BASE}${event.image}`)}
         />
       ) : (
         <View style={[styles.featuredImage, { backgroundColor: colors.primary }]} />
@@ -42,9 +47,11 @@ function EventGridCard({ event, onPress }) {
     <TouchableOpacity activeOpacity={0.85} onPress={onPress} style={styles.gridCard}>
       {event.image ? (
         <Image 
-          source={{ uri: `http://localhost:5000${event.image}` }} 
+          source={{ uri: encodeURI(`${UPLOADS_BASE}${event.image}`) }} 
           style={styles.gridImage}
           resizeMode="cover"
+          onLoad={() => console.log('Image loaded', `${UPLOADS_BASE}${event.image}`)}
+          onError={(e) => console.warn('Image load error', e.nativeEvent?.error, `${UPLOADS_BASE}${event.image}`)}
         />
       ) : (
         <View style={[styles.gridImage, { backgroundColor: colors.primary }]} />
@@ -106,14 +113,8 @@ export default function HomeScreen({ navigation }) {
     setFilteredEvents(result);
   };
 
-  const featuredEvents = filteredEvents.slice(0, 2);
-  const otherEvents = filteredEvents.slice(2);
-
-  const navigateToBooking = (eventId) => {
-    navigation.navigate('Bookings', {
-      screen: 'CreateBooking',
-      params: { eventId }
-    });
+  const navigateToEventDetails = (eventId) => {
+    navigation.navigate('EventDetails', { id: eventId });
   };
 
   return (
@@ -164,30 +165,16 @@ export default function HomeScreen({ navigation }) {
           ))}
         </ScrollView>
 
-        {/* Featured Events */}
-        {featuredEvents.length > 0 && (
+        {/* Events */}
+        {filteredEvents.length > 0 && (
           <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Featured Events</Text>
-            {featuredEvents.map((event) => (
-              <FeaturedEventCard
-                key={event._id}
-                event={event}
-                onPress={() => navigateToBooking(event._id)}
-              />
-            ))}
-          </View>
-        )}
-
-        {/* All Events Grid */}
-        {otherEvents.length > 0 && (
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>More Events</Text>
+            <Text style={styles.sectionTitle}>Events</Text>
             <View style={styles.gridContainer}>
-              {otherEvents.map((event) => (
+              {filteredEvents.map((event) => (
                 <EventGridCard
                   key={event._id}
                   event={event}
-                  onPress={() => navigateToBooking(event._id)}
+                  onPress={() => navigateToEventDetails(event._id)}
                 />
               ))}
             </View>
