@@ -1,0 +1,8 @@
+# Ignore unnecessary files during Vercel builds
+node_modules
+.git
+.env
+.env.local
+*.md
+.gitignore
+scripts/start-expo-lan.js
