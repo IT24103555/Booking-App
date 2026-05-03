@@ -50,7 +50,7 @@ function EventRowCard({ item, onPress, onEditPress, isStaff }) {
         <Text style={styles.eventMeta} numberOfLines={1}>📅 {formatDate(item.eventDate)} · {item.startTime || '--:--'}</Text>
         <Text style={styles.eventMeta} numberOfLines={1}>📍 {item.venueId?.name || 'Venue TBA'}</Text>
         <View style={styles.cardFooter}>
-          <Text style={styles.priceText}>NPR {item.ticketTypeIds?.[0]?.price || item.price || '1500'}</Text>
+          <Text style={styles.priceText}>LKR {item.ticketTypeIds?.[0]?.price || item.price || '1500'}</Text>
           {isStaff ? (
             <TouchableOpacity style={styles.smallEditButton} onPress={onEditPress}>
               <Text style={styles.smallEditText}>Edit</Text>

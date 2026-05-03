@@ -328,7 +328,7 @@ export default function CreateBookingScreen({ route, navigation }) {
                     <View style={styles.ticketInfo}>
                       <Text style={styles.ticketName}>{ticket.name}</Text>
                       <Text style={styles.ticketDesc}>{ticket.description || 'Access to event activities.'}</Text>
-                      <Text style={styles.ticketPrice}>NPR {Number(ticket.price || 0).toFixed(0)}</Text>
+                      <Text style={styles.ticketPrice}>LKR {Number(ticket.price || 0).toFixed(0)}</Text>
                       <Text style={styles.ticketAvailable}>{ticket.availableQuantity} available</Text>
                     </View>
                     <View style={styles.quantityControls}>
@@ -446,7 +446,7 @@ export default function CreateBookingScreen({ route, navigation }) {
           <View style={styles.bottomBar}>
             <View>
               <Text style={styles.totalLabel}>Total Amount</Text>
-              <Text style={styles.totalValue}>NPR {Number(totalAmount || 0).toFixed(0)}</Text>
+              <Text style={styles.totalValue}>LKR {Number(totalAmount || 0).toFixed(0)}</Text>
             </View>
             <TouchableOpacity style={[styles.confirmButton, (saving || !canConfirmBooking) && styles.confirmButtonDisabled]} disabled={saving || !canConfirmBooking} onPress={onSave}>
               <Text style={styles.confirmButtonText}>{saving ? 'Confirming...' : 'Confirm Booking'}</Text>

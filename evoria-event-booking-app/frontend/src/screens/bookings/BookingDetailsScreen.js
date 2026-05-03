@@ -130,7 +130,7 @@ export default function BookingDetailsScreen({ route, navigation }) {
                 <Text style={styles.sectionTitle}>Booking Info</Text>
                 <DetailRow label="Ticket Type" value={item.ticketTypeId?.name || item.ticketTypeId || 'General Entry'} />
                 <DetailRow label="Quantity" value={`${item.quantity || 0} Ticket${Number(item.quantity) === 1 ? '' : 's'}`} />
-                <DetailRow label="Total Amount" value={`NPR ${Number(item.totalAmount || 0).toFixed(0)}`} />
+                <DetailRow label="Total Amount" value={`LKR ${Number(item.totalAmount || 0).toFixed(0)}`} />
                 <DetailRow label="Booking Date" value={formatDate(item.bookingDate || item.createdAt)} />
                 <DetailRow label="Payment Method" value={item.paymentMethod || 'Pay at Venue'} />
                 {isStaff ? <DetailRow label="Customer" value={item.userId?.name || item.userId?.email || item.userId} /> : null}

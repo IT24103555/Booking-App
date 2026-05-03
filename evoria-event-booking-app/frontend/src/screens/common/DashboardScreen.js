@@ -65,7 +65,7 @@ export default function DashboardScreen({ navigation }) {
           <SummaryCard label="Total Events" value="128" />
           <SummaryCard label="Total Bookings" value="356" />
           <SummaryCard label="Total Users" value="2,450" />
-          <SummaryCard label="Total Revenue" value="NPR 75,000" />
+          <SummaryCard label="Total Revenue" value="LKR 75,000" />
         </View>
 
         <View style={styles.sectionHeader}>
