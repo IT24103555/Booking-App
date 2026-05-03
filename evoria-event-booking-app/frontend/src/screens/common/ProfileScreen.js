@@ -126,11 +126,13 @@ export default function ProfileScreen({ navigation }) {
             <AppButton title={saving ? 'Saving...' : 'Save Changes'} onPress={onSave} disabled={saving} />
           </View>
 
-          <View style={styles.menuCard}>
-            <MenuRow icon="🎟️" title="My Bookings" onPress={() => navigation?.navigate?.('MyBookings')} />
-            <MenuRow icon="🔔" title="Notifications" onPress={() => navigation?.navigate?.('Notifications')} />
-            <MenuRow icon="💬" title="Help & Support" onPress={() => navigation?.navigate?.('Chatbot')} />
-          </View>
+          {user?.role !== 'admin' && (
+            <View style={styles.menuCard}>
+              <MenuRow icon="🎟️" title="My Bookings" onPress={() => navigation?.navigate?.('MyBookings')} />
+              <MenuRow icon="🔔" title="Notifications" onPress={() => navigation?.navigate?.('Notifications')} />
+              <MenuRow icon="💬" title="Help & Support" onPress={() => navigation?.navigate?.('Chatbot')} />
+            </View>
+          )}
 
           <View style={styles.menuCard}>
             <MenuRow icon="🚪" title="Logout" onPress={logout} danger />
