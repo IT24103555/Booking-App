@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { Alert, View, Text, StyleSheet, ScrollView, KeyboardAvoidingView, Platform, TouchableOpacity, Image, SafeAreaView, FlatList, Modal } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import { eventApi } from '../../api/eventApi';
@@ -63,6 +63,7 @@ export default function AddEventScreen({ navigation }) {
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [showStartTimePicker, setShowStartTimePicker] = useState(false);
   const [showEndTimePicker, setShowEndTimePicker] = useState(false);
+  const availableVenues = useMemo(() => venues.filter((venue) => venue.status === 'Available'), [venues]);
 
   useEffect(() => {
     const loadVenues = async () => {
@@ -79,27 +80,15 @@ export default function AddEventScreen({ navigation }) {
   }, []);
 
   const onPickImage = async () => {
-    // Use browser file input on web so FormData receives a real File.
-    if (Platform.OS === 'web' && typeof document !== 'undefined') {
-      const input = document.createElement('input');
-      input.type = 'file';
-      input.accept = 'image/*';
-      input.onchange = (e) => {
-        const file = e.target.files?.[0];
-        if (!file) return;
-        setImageFile(file);
-        const reader = new FileReader();
-        reader.onload = (evt) => setImagePreview(evt.target.result);
-        reader.readAsDataURL(file);
-      };
-      input.click();
-      return;
-    }
-
-    // Use Expo ImagePicker for native devices.
     try {
-      const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-      if (status !== 'granted') {
+      if (!ImagePicker || typeof ImagePicker.requestMediaLibraryPermissionsAsync !== 'function') {
+        console.error('ImagePicker not available or incompatible:', ImagePicker);
+        Alert.alert('Image error', 'Image picker is not available in this Expo client. Try updating Expo Go or use a compatible build.');
+        return;
+      }
+      const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      const granted = (perm && (perm.status === 'granted' || perm.granted === true));
+      if (!granted) {
         Alert.alert('Permission required', 'Permission to access photos is required to upload images.');
         return;
       }
@@ -119,30 +108,15 @@ export default function AddEventScreen({ navigation }) {
       const uri = asset.uri;
       setImagePreview(uri);
 
-      const fileName = uri.split('/').pop();
+      const fileName = asset.fileName || uri.split('/').pop() || 'event-image.jpg';
       const match = /\.([0-9a-z]+)(?:[?;]|$)/i.exec(fileName);
       const ext = match ? match[1] : 'jpg';
-      const type = asset.type || `image/${ext}`;
+      const type = asset.mimeType || `image/${ext}`;
 
       setImageFile({ uri, name: fileName, type });
     } catch (err) {
-      // Fallback to web file input for web clients
-      if (typeof document !== 'undefined') {
-        const input = document.createElement('input');
-        input.type = 'file'; input.accept = 'image/*';
-        input.onchange = (e) => {
-          const file = e.target.files[0];
-          if (file) {
-            setImageFile(file);
-            const reader = new FileReader();
-            reader.onload = (evt) => setImagePreview(evt.target.result);
-            reader.readAsDataURL(file);
-          }
-        };
-        input.click();
-      } else {
-        Alert.alert('Image error', 'Could not open image picker.');
-      }
+      console.error('ImagePicker error:', err);
+      Alert.alert('Image error', err?.message || 'Could not open image picker.');
     }
   };
 
@@ -213,7 +187,7 @@ export default function AddEventScreen({ navigation }) {
             
             <Text style={styles.fieldLabel}>Venue</Text>
             <TouchableOpacity style={styles.venueButton} onPress={() => setShowVenuePicker(true)}>
-              <Text style={styles.venueButtonText}>{selectedVenue ? selectedVenue.name : loadingVenues ? 'Loading venues...' : 'Select a venue'}</Text>
+              <Text style={styles.venueButtonText}>{selectedVenue ? selectedVenue.name : loadingVenues ? 'Loading venues...' : 'Select an available venue'}</Text>
               <Text style={styles.venueButtonArrow}>›</Text>
             </TouchableOpacity>
             
@@ -227,7 +201,7 @@ export default function AddEventScreen({ navigation }) {
                   <View style={styles.modalClose} />
                 </View>
                 <FlatList
-                  data={venues}
+                  data={availableVenues}
                   keyExtractor={(item) => item._id}
                   renderItem={({ item }) => (
                     <TouchableOpacity
@@ -243,6 +217,7 @@ export default function AddEventScreen({ navigation }) {
                     </TouchableOpacity>
                   )}
                 />
+                {!loadingVenues && availableVenues.length === 0 ? <Text style={styles.emptyPickerText}>No available venues found.</Text> : null}
               </SafeAreaView>
             </Modal>
 
@@ -319,4 +294,5 @@ const styles = StyleSheet.create({
   venueOptionLocation: { fontSize: 13, color: UI.muted, marginTop: 4 },
   venueOptionCapacity: { fontSize: 12, color: UI.muted, marginTop: 4 },
   checkmark: { fontSize: 20, color: UI.primary, fontWeight: '900' },
+  emptyPickerText: { color: UI.muted, fontSize: 13, fontWeight: '700', textAlign: 'center', padding: 18 },
 });

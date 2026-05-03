@@ -105,10 +105,10 @@ export default function BookingDetailsScreen({ route, navigation }) {
     });
   };
 
-  const onDownloadReceipt = () => {
-    const downloaded = downloadBookingReceipt(item);
+  const onDownloadReceipt = async () => {
+    const downloaded = await downloadBookingReceipt(item);
     if (!downloaded) {
-      Alert.alert('Receipt unavailable', Platform.OS === 'web' ? 'The receipt could not be generated.' : 'Receipt download is currently supported on web only.');
+      Alert.alert('Receipt unavailable', 'The receipt could not be shared or generated.');
     }
   };
 

@@ -127,7 +127,7 @@ export default function EventListScreen({ navigation, route }) {
     }
     if (category !== 'All') {
       const c = category.toLowerCase();
-      result = result.filter((e) => String(e.category || e.title || e.description || '').toLowerCase().includes(c));
+      result = result.filter((e) => String(e.category || '').trim().toLowerCase() === c);
     }
     return result;
   }, [items, query, category]);
