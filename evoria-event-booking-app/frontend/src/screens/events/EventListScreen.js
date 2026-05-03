@@ -68,7 +68,7 @@ function FloatingChatButton({ navigation, hidden }) {
   return <TouchableOpacity style={styles.floatingChat} activeOpacity={0.88} onPress={() => navigation.navigate('Chatbot')}><Text style={styles.floatingChatText}>💬</Text></TouchableOpacity>;
 }
 
-export default function EventListScreen({ navigation }) {
+export default function EventListScreen({ navigation, route }) {
   const { user } = useContext(AuthContext);
   const isStaff = user?.role === 'admin' || user?.role === 'organizer';
   const [items, setItems] = useState([]);
@@ -77,6 +77,7 @@ export default function EventListScreen({ navigation }) {
   const [error, setError] = useState('');
   const [query, setQuery] = useState('');
   const [category, setCategory] = useState('All');
+  const hasLoadedRef = React.useRef(false);
 
   const load = async (isRefresh = false) => {
     try {
@@ -90,20 +91,28 @@ export default function EventListScreen({ navigation }) {
     } finally {
       setLoading(false);
       setRefreshing(false);
+      hasLoadedRef.current = true;
     }
   };
 
   // Initial load on mount or when user role changes
   useEffect(() => { load(); }, [isStaff]);
 
+  // Force refresh when another screen explicitly requests it.
+  useEffect(() => {
+    if (route?.params?.refreshAt) {
+      load(true);
+    }
+  }, [route?.params?.refreshAt]);
+
   // Auto-refresh when screen comes into focus (user navigates back after create/update/delete)
   useFocusEffect(
     React.useCallback(() => {
-      // Silently reload data without showing loading spinner if data already exists
-      if (items.length > 0) {
+      // Refresh only after initial load is done, keeping existing data visible.
+      if (hasLoadedRef.current) {
         load(true); // true = use refreshing state (pull-to-refresh spinner)
       }
-    }, [])
+    }, [isStaff])
   );
 
   const filtered = useMemo(() => {

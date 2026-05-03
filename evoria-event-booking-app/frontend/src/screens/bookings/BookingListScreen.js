@@ -56,7 +56,7 @@ function FloatingChatButton({ navigation, hidden }) {
   return <TouchableOpacity style={styles.floatingChat} activeOpacity={0.88} onPress={() => navigation.navigate('Chatbot')}><Text style={styles.floatingChatText}>💬</Text></TouchableOpacity>;
 }
 
-export default function BookingListScreen({ navigation }) {
+export default function BookingListScreen({ navigation, route }) {
   const { user, loading: authLoading } = useContext(AuthContext);
   const isStaff = user?.role === 'admin' || user?.role === 'organizer';
   const [items, setItems] = useState([]);
@@ -64,6 +64,7 @@ export default function BookingListScreen({ navigation }) {
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState('');
   const [tab, setTab] = useState('Upcoming');
+  const hasLoadedRef = React.useRef(false);
 
   const load = async (isRefresh = false) => {
     try {
@@ -76,22 +77,30 @@ export default function BookingListScreen({ navigation }) {
     } finally {
       setLoading(false);
       setRefreshing(false);
+      hasLoadedRef.current = true;
     }
   };
 
   // Auto-refresh when screen comes into focus
   useFocusEffect(
     React.useCallback(() => {
-      if (items.length > 0) {
+      if (hasLoadedRef.current) {
         load(true); // Silently refresh with pull-to-refresh spinner
       }
-    }, [])
+    }, [isStaff])
   );
 
   useEffect(() => {
     if (authLoading) return;
     load();
   }, [authLoading, user?.role]);
+
+  // Force refresh when another screen explicitly requests it.
+  useEffect(() => {
+    if (route?.params?.refreshAt) {
+      load(true);
+    }
+  }, [route?.params?.refreshAt]);
 
   const confirmedCount = items.filter((b) => b.status === 'Confirmed').length;
   const pendingCount = items.filter((b) => b.status === 'Pending').length;
