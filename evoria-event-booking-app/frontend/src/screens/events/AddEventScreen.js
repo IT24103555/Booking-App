@@ -7,6 +7,7 @@ import { getErrorMessage } from '../../api/apiClient';
 import AppInput from '../../components/AppInput';
 import AppButton from '../../components/AppButton';
 import ErrorMessage from '../../components/ErrorMessage';
+import { DatePickerModal, PickerField, TimePickerModal } from '../../components/SchedulePickers';
 import { isRequired, validateEventSchedule } from '../../utils/validators';
 
 const UI = { primary: '#EC168C', background: '#FFF7FC', surface: '#FFFFFF', text: '#111827', muted: '#7C7C8A', border: '#F0DDEB', softPink: '#FFE7F4' };
@@ -29,6 +30,9 @@ export default function AddEventScreen({ navigation }) {
   const [venues, setVenues] = useState([]);
   const [loadingVenues, setLoadingVenues] = useState(true);
   const [showVenuePicker, setShowVenuePicker] = useState(false);
+  const [showDatePicker, setShowDatePicker] = useState(false);
+  const [showStartTimePicker, setShowStartTimePicker] = useState(false);
+  const [showEndTimePicker, setShowEndTimePicker] = useState(false);
 
   useEffect(() => {
     const loadVenues = async () => {
@@ -147,10 +151,36 @@ export default function AddEventScreen({ navigation }) {
             <TouchableOpacity style={styles.imagePicker} onPress={onPickImage}>{imagePreview ? <Image source={{ uri: imagePreview }} style={styles.previewImage} /> : <><Text style={styles.imageIcon}>🖼️</Text><Text style={styles.imageText}>Upload Event Image</Text></>}</TouchableOpacity>
             <AppInput label="Event Title" value={title} onChangeText={setTitle} placeholder="Sunset Music Festival 2025" />
             <AppInput label="Description" value={description} onChangeText={setDescription} placeholder="Describe event details" multiline />
-            <AppInput label="Event Date" value={eventDate} onChangeText={setEventDate} placeholder="YYYY-MM-DD" />
-            <Text style={styles.helperText}>Use a real calendar date in YYYY-MM-DD format.</Text>
-            <View style={styles.rowFields}><View style={styles.flexField}><AppInput label="Start" value={startTime} onChangeText={setStartTime} placeholder="HH:mm" /></View><View style={styles.flexField}><AppInput label="End" value={endTime} onChangeText={setEndTime} placeholder="HH:mm" /></View></View>
-            <Text style={styles.helperText}>Use 24-hour time format, for example 09:00 or 18:30.</Text>
+            <PickerField
+              label="Event Date"
+              value={eventDate}
+              placeholder="Select a date"
+              onPress={() => setShowDatePicker(true)}
+              helperText="Choose a date from the calendar."
+              theme={UI}
+            />
+            <View style={styles.rowFields}>
+              <View style={styles.flexField}>
+                <PickerField
+                  label="Start"
+                  value={startTime}
+                  placeholder="Select time"
+                  onPress={() => setShowStartTimePicker(true)}
+                  helperText="24-hour time."
+                  theme={UI}
+                />
+              </View>
+              <View style={styles.flexField}>
+                <PickerField
+                  label="End"
+                  value={endTime}
+                  placeholder="Select time"
+                  onPress={() => setShowEndTimePicker(true)}
+                  helperText="24-hour time."
+                  theme={UI}
+                />
+              </View>
+            </View>
             
             <Text style={styles.fieldLabel}>Venue</Text>
             <TouchableOpacity style={styles.venueButton} onPress={() => setShowVenuePicker(true)}>
@@ -186,6 +216,42 @@ export default function AddEventScreen({ navigation }) {
                 />
               </SafeAreaView>
             </Modal>
+
+            <DatePickerModal
+              visible={showDatePicker}
+              value={eventDate}
+              onClose={() => setShowDatePicker(false)}
+              onSelect={(selectedDate) => {
+                setEventDate(selectedDate);
+                setShowDatePicker(false);
+              }}
+              theme={UI}
+              title="Select Event Date"
+            />
+
+            <TimePickerModal
+              visible={showStartTimePicker}
+              value={startTime}
+              onClose={() => setShowStartTimePicker(false)}
+              onSelect={(selectedTime) => {
+                setStartTime(selectedTime);
+                setShowStartTimePicker(false);
+              }}
+              theme={UI}
+              title="Select Start Time"
+            />
+
+            <TimePickerModal
+              visible={showEndTimePicker}
+              value={endTime}
+              onClose={() => setShowEndTimePicker(false)}
+              onSelect={(selectedTime) => {
+                setEndTime(selectedTime);
+                setShowEndTimePicker(false);
+              }}
+              theme={UI}
+              title="Select End Time"
+            />
             
             <Text style={styles.fieldLabel}>Status</Text><View style={styles.chipRow}>{STATUSES.map((s) => <Chip key={s} label={s} selected={status === s} onPress={() => setStatus(s)} />)}</View>
             <AppButton title={saving ? 'Creating...' : 'Create Event'} onPress={onSave} disabled={saving} />
@@ -202,7 +268,6 @@ const styles = StyleSheet.create({
   heroCard: { backgroundColor: UI.primary, borderRadius: 28, padding: 22, marginBottom: 16, shadowColor: UI.primary, shadowOffset: { width: 0, height: 12 }, shadowOpacity: 0.22, shadowRadius: 18, elevation: 8 }, kicker: { color: 'rgba(255,255,255,0.8)', fontSize: 12, fontWeight: '900', textTransform: 'uppercase' }, title: { color: '#fff', fontSize: 24, fontWeight: '900', marginTop: 7 }, subtitle: { color: 'rgba(255,255,255,0.86)', lineHeight: 21, fontWeight: '700', marginTop: 7 },
   formCard: { backgroundColor: '#fff', borderRadius: 24, padding: 18, borderWidth: 1, borderColor: UI.border }, sectionTitle: { color: UI.text, fontSize: 18, fontWeight: '900', marginBottom: 12 },
   imagePicker: { height: 150, borderRadius: 22, backgroundColor: '#FFF3FA', borderWidth: 1.5, borderStyle: 'dashed', borderColor: UI.primary, alignItems: 'center', justifyContent: 'center', marginBottom: 14, overflow: 'hidden' }, previewImage: { width: '100%', height: '100%' }, imageIcon: { fontSize: 32 }, imageText: { color: UI.primary, fontWeight: '900', marginTop: 8 },
-  helperText: { color: UI.muted, fontSize: 12, lineHeight: 17, marginTop: -6, marginBottom: 10 },
   rowFields: { flexDirection: 'row', gap: 10 }, flexField: { flex: 1 }, fieldLabel: { color: UI.text, fontWeight: '900', marginTop: 8, marginBottom: 10 }, chipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 18 }, chip: { paddingHorizontal: 13, paddingVertical: 9, borderRadius: 999, borderWidth: 1, borderColor: UI.border, backgroundColor: '#FFF8FC' }, chipActive: { backgroundColor: UI.primary, borderColor: UI.primary }, chipText: { color: UI.text, fontWeight: '800', fontSize: 12 }, chipTextActive: { color: '#fff' },
   venueButton: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 14, paddingVertical: 12, borderRadius: 12, borderWidth: 1, borderColor: UI.border, backgroundColor: UI.surface, marginBottom: 18 }, venueButtonText: { flex: 1, color: UI.text, fontWeight: '700', fontSize: 15 }, venueButtonArrow: { color: UI.primary, fontSize: 18, fontWeight: '900' },
   modal: { flex: 1, backgroundColor: UI.background },
