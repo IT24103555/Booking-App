@@ -7,7 +7,7 @@ import { getErrorMessage } from '../../api/apiClient';
 import AppInput from '../../components/AppInput';
 import AppButton from '../../components/AppButton';
 import ErrorMessage from '../../components/ErrorMessage';
-import { isRequired, isTimeHHmm, isDateYYYYMMDD, isTodayOrFutureDate } from '../../utils/validators';
+import { isRequired, validateEventSchedule } from '../../utils/validators';
 
 const UI = { primary: '#EC168C', background: '#FFF7FC', surface: '#FFFFFF', text: '#111827', muted: '#7C7C8A', border: '#F0DDEB', softPink: '#FFE7F4' };
 const STATUSES = ['Draft', 'Published', 'Cancelled', 'Completed'];
@@ -115,16 +115,13 @@ export default function AddEventScreen({ navigation }) {
   const onSave = async () => {
     setError('');
     if (!isRequired(title)) return setError('Title is required.');
-    if (!isRequired(eventDate)) return setError('Event date is required (YYYY-MM-DD).');
-    if (!isDateYYYYMMDD(eventDate)) return setError('Event date must be a valid date in YYYY-MM-DD format.');
-    if (!isTodayOrFutureDate(eventDate)) return setError('Event date cannot be in the past.');
-    if (!isTimeHHmm(startTime) || !isTimeHHmm(endTime)) return setError('Time must be HH:mm.');
-    if (endTime <= startTime) return setError('End time must be after start time.');
+    const scheduleCheck = validateEventSchedule(eventDate, startTime, endTime);
+    if (!scheduleCheck.valid) return setError(scheduleCheck.message);
     if (!venueId) return setError('Please select a venue.');
     if (!STATUSES.includes(status)) return setError('Status must be Draft, Published, Cancelled, or Completed.');
     try {
       setSaving(true);
-      const payload = { title: title.trim(), description, eventDate: eventDate.trim(), startTime, endTime, venueId, status };
+      const payload = { title: title.trim(), description, eventDate, startTime, endTime, venueId, status };
       if (imageFile) payload.imageFile = imageFile;
       await eventApi.create(payload);
       Alert.alert('Success', 'Event created');
@@ -151,7 +148,9 @@ export default function AddEventScreen({ navigation }) {
             <AppInput label="Event Title" value={title} onChangeText={setTitle} placeholder="Sunset Music Festival 2025" />
             <AppInput label="Description" value={description} onChangeText={setDescription} placeholder="Describe event details" multiline />
             <AppInput label="Event Date" value={eventDate} onChangeText={setEventDate} placeholder="YYYY-MM-DD" />
-            <View style={styles.rowFields}><View style={styles.flexField}><AppInput label="Start" value={startTime} onChangeText={setStartTime} placeholder="10:00" /></View><View style={styles.flexField}><AppInput label="End" value={endTime} onChangeText={setEndTime} placeholder="12:00" /></View></View>
+            <Text style={styles.helperText}>Use a real calendar date in YYYY-MM-DD format.</Text>
+            <View style={styles.rowFields}><View style={styles.flexField}><AppInput label="Start" value={startTime} onChangeText={setStartTime} placeholder="HH:mm" /></View><View style={styles.flexField}><AppInput label="End" value={endTime} onChangeText={setEndTime} placeholder="HH:mm" /></View></View>
+            <Text style={styles.helperText}>Use 24-hour time format, for example 09:00 or 18:30.</Text>
             
             <Text style={styles.fieldLabel}>Venue</Text>
             <TouchableOpacity style={styles.venueButton} onPress={() => setShowVenuePicker(true)}>
@@ -203,6 +202,7 @@ const styles = StyleSheet.create({
   heroCard: { backgroundColor: UI.primary, borderRadius: 28, padding: 22, marginBottom: 16, shadowColor: UI.primary, shadowOffset: { width: 0, height: 12 }, shadowOpacity: 0.22, shadowRadius: 18, elevation: 8 }, kicker: { color: 'rgba(255,255,255,0.8)', fontSize: 12, fontWeight: '900', textTransform: 'uppercase' }, title: { color: '#fff', fontSize: 24, fontWeight: '900', marginTop: 7 }, subtitle: { color: 'rgba(255,255,255,0.86)', lineHeight: 21, fontWeight: '700', marginTop: 7 },
   formCard: { backgroundColor: '#fff', borderRadius: 24, padding: 18, borderWidth: 1, borderColor: UI.border }, sectionTitle: { color: UI.text, fontSize: 18, fontWeight: '900', marginBottom: 12 },
   imagePicker: { height: 150, borderRadius: 22, backgroundColor: '#FFF3FA', borderWidth: 1.5, borderStyle: 'dashed', borderColor: UI.primary, alignItems: 'center', justifyContent: 'center', marginBottom: 14, overflow: 'hidden' }, previewImage: { width: '100%', height: '100%' }, imageIcon: { fontSize: 32 }, imageText: { color: UI.primary, fontWeight: '900', marginTop: 8 },
+  helperText: { color: UI.muted, fontSize: 12, lineHeight: 17, marginTop: -6, marginBottom: 10 },
   rowFields: { flexDirection: 'row', gap: 10 }, flexField: { flex: 1 }, fieldLabel: { color: UI.text, fontWeight: '900', marginTop: 8, marginBottom: 10 }, chipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 18 }, chip: { paddingHorizontal: 13, paddingVertical: 9, borderRadius: 999, borderWidth: 1, borderColor: UI.border, backgroundColor: '#FFF8FC' }, chipActive: { backgroundColor: UI.primary, borderColor: UI.primary }, chipText: { color: UI.text, fontWeight: '800', fontSize: 12 }, chipTextActive: { color: '#fff' },
   venueButton: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 14, paddingVertical: 12, borderRadius: 12, borderWidth: 1, borderColor: UI.border, backgroundColor: UI.surface, marginBottom: 18 }, venueButtonText: { flex: 1, color: UI.text, fontWeight: '700', fontSize: 15 }, venueButtonArrow: { color: UI.primary, fontSize: 18, fontWeight: '900' },
   modal: { flex: 1, backgroundColor: UI.background },

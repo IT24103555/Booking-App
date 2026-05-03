@@ -23,7 +23,7 @@ import AppButton from '../../components/AppButton';
 import ErrorMessage from '../../components/ErrorMessage';
 import LoadingSpinner from '../../components/LoadingSpinner';
 import { colors } from '../../constants/colors';
-import { isRequired, isTimeHHmm, isDateYYYYMMDD, isTodayOrFutureDate } from '../../utils/validators';
+import { isRequired, validateEventSchedule } from '../../utils/validators';
 
 const STATUS_OPTIONS = ['Draft', 'Published', 'Cancelled', 'Completed'];
 
@@ -145,11 +145,8 @@ export default function EditEventScreen({ route, navigation }) {
   const onSave = async () => {
     setError('');
     if (!isRequired(title)) return setError('Title is required.');
-    if (!isRequired(eventDate)) return setError('Event date is required (YYYY-MM-DD).');
-    if (!isDateYYYYMMDD(eventDate)) return setError('Event date must be a valid date in YYYY-MM-DD format.');
-    if (!isTodayOrFutureDate(eventDate)) return setError('Event date cannot be in the past.');
-    if (!isTimeHHmm(startTime) || !isTimeHHmm(endTime)) return setError('Time must be HH:mm.');
-    if (endTime <= startTime) return setError('End time must be after start time.');
+    const scheduleCheck = validateEventSchedule(eventDate, startTime, endTime);
+    if (!scheduleCheck.valid) return setError(scheduleCheck.message);
     if (!venueId) return setError('Please select a venue.');
     if (!STATUS_OPTIONS.includes(status)) return setError('Status must be Draft, Published, Cancelled, or Completed.');
 
@@ -158,7 +155,7 @@ export default function EditEventScreen({ route, navigation }) {
       const payload = {
         title: title.trim(),
         description,
-        eventDate: eventDate.trim(),
+        eventDate,
         startTime,
         endTime,
         venueId,
@@ -216,6 +213,8 @@ export default function EditEventScreen({ route, navigation }) {
               </TouchableOpacity>
             </View>
           </View>
+          <Text style={styles.helperText}>Use a real calendar date in YYYY-MM-DD format.</Text>
+          <Text style={styles.helperText}>Use 24-hour time format, for example 09:00 or 18:30.</Text>
 
           <Modal visible={showVenuePicker} transparent animationType="slide">
             <SafeAreaView style={styles.modal}>
@@ -305,6 +304,7 @@ const styles = StyleSheet.create({
   },
   sectionTitle: { color: '#1F1D2B', fontSize: 20, fontWeight: '900' },
   sectionHint: { color: '#7A7185', fontSize: 13, lineHeight: 19, marginTop: 4, marginBottom: 12 },
+  helperText: { color: '#7A7185', fontSize: 12, lineHeight: 17, marginTop: -2, marginBottom: 8 },
   twoColumn: { flexDirection: 'row', marginHorizontal: -5 },
   column: { flex: 1, marginHorizontal: 5 },
   optionSection: { marginTop: 12, marginBottom: 8 },
