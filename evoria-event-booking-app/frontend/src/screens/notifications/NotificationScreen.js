@@ -1,5 +1,5 @@
 import React, { useCallback, useMemo, useState } from 'react';
-import { Alert, FlatList, Pressable, SafeAreaView, StyleSheet, Text, View } from 'react-native';
+import { Alert, FlatList, Pressable, SafeAreaView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import AppButton from '../../components/AppButton';
 import ErrorMessage from '../../components/ErrorMessage';
@@ -42,41 +42,34 @@ function NotificationCard({ item, onPress, onDelete }) {
   const isHigh = item.priority === 'high';
 
   return (
-    <Pressable
-      onPress={onPress}
-      style={[
-        styles.card,
-        isUnread ? styles.cardUnread : styles.cardRead,
-        isHigh && styles.cardHigh,
-      ]}
-    >
-      <View style={styles.cardTopRow}>
-        <View style={styles.iconBox}><Text style={styles.iconText}>{icon}</Text></View>
-        <View style={styles.cardContent}>
-          <View style={styles.titleRow}>
-            <Text style={styles.cardTitle}>{item.title}</Text>
-            {isHigh ? <View style={styles.priorityBadge}><Text style={styles.priorityText}>High</Text></View> : null}
+    <View style={[
+      styles.card,
+      isUnread ? styles.cardUnread : styles.cardRead,
+      isHigh && styles.cardHigh,
+    ]}>
+      <Pressable onPress={onPress} style={styles.cardPressArea}>
+        <View style={styles.cardTopRow}>
+          <View style={styles.iconBox}><Text style={styles.iconText}>{icon}</Text></View>
+          <View style={styles.cardContent}>
+            <View style={styles.titleRow}>
+              <Text style={styles.cardTitle}>{item.title}</Text>
+              {isHigh ? <View style={styles.priorityBadge}><Text style={styles.priorityText}>High</Text></View> : null}
+            </View>
+            <Text style={styles.cardType}>{TYPE_LABELS[item.type] || 'System'}</Text>
+            <Text style={styles.cardMessage}>{item.message}</Text>
+            <Text style={styles.cardTime}>{formatTimestamp(item.createdAt)}</Text>
           </View>
-          <Text style={styles.cardType}>{TYPE_LABELS[item.type] || 'System'}</Text>
-          <Text style={styles.cardMessage}>{item.message}</Text>
-          <Text style={styles.cardTime}>{formatTimestamp(item.createdAt)}</Text>
         </View>
-      </View>
+      </Pressable>
 
       <View style={styles.cardActions}>
         {!item.isRead ? <View style={styles.unreadDot} /> : <View />}
-        <Pressable
-          onPress={(event) => {
-            event.stopPropagation?.();
-            onDelete();
-          }}
-          hitSlop={8}
-          style={styles.deleteButton}
-        >
-          <Text style={styles.deleteText}>🗑️</Text>
-        </Pressable>
+        <TouchableOpacity activeOpacity={0.82} onPress={onDelete} style={styles.deleteButton} accessibilityRole="button" accessibilityLabel="Delete notification">
+          <Text style={styles.deleteIcon}>🗑️</Text>
+          <Text style={styles.deleteLabel}>Delete</Text>
+        </TouchableOpacity>
       </View>
-    </Pressable>
+    </View>
   );
 }
 
@@ -244,6 +237,7 @@ const styles = StyleSheet.create({
   cardUnread: { backgroundColor: '#FFF7FC' },
   cardRead: { opacity: 0.82 },
   cardHigh: { borderColor: '#FECACA' },
+  cardPressArea: { flex: 1 },
   cardTopRow: { flexDirection: 'row' },
   iconBox: {
     width: 44,
@@ -265,6 +259,7 @@ const styles = StyleSheet.create({
   cardTime: { color: colors.muted, fontSize: 11, fontWeight: '700', marginTop: 8 },
   cardActions: { marginTop: 12, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   unreadDot: { width: 10, height: 10, borderRadius: 5, backgroundColor: colors.primary },
-  deleteButton: { padding: 4 },
-  deleteText: { fontSize: 17 },
+  deleteButton: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingVertical: 4, paddingHorizontal: 6 },
+  deleteIcon: { fontSize: 16 },
+  deleteLabel: { color: colors.muted, fontSize: 11, fontWeight: '800' },
 });
