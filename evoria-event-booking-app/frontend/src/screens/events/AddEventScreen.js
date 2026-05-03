@@ -26,14 +26,29 @@ export default function AddEventScreen({ navigation }) {
   const [saving, setSaving] = useState(false);
 
   const onPickImage = async () => {
-    // Use Expo ImagePicker for native devices, fallback to web input
+    // Use browser file input on web so FormData receives a real File.
+    if (Platform.OS === 'web' && typeof document !== 'undefined') {
+      const input = document.createElement('input');
+      input.type = 'file';
+      input.accept = 'image/*';
+      input.onchange = (e) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+        setImageFile(file);
+        const reader = new FileReader();
+        reader.onload = (evt) => setImagePreview(evt.target.result);
+        reader.readAsDataURL(file);
+      };
+      input.click();
+      return;
+    }
+
+    // Use Expo ImagePicker for native devices.
     try {
-      if (Platform.OS !== 'web') {
-        const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-        if (status !== 'granted') {
-          Alert.alert('Permission required', 'Permission to access photos is required to upload images.');
-          return;
-        }
+      const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (status !== 'granted') {
+        Alert.alert('Permission required', 'Permission to access photos is required to upload images.');
+        return;
       }
 
       const result = await ImagePicker.launchImageLibraryAsync({
@@ -50,12 +65,6 @@ export default function AddEventScreen({ navigation }) {
 
       const uri = asset.uri;
       setImagePreview(uri);
-
-      // On web, send the real File object so multipart upload works in browser.
-      if (Platform.OS === 'web' && asset.file) {
-        setImageFile(asset.file);
-        return;
-      }
 
       const fileName = uri.split('/').pop();
       const match = /\.([0-9a-z]+)(?:[?;]|$)/i.exec(fileName);
