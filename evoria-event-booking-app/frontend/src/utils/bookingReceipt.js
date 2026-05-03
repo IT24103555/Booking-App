@@ -1,3 +1,7 @@
+import { Platform } from 'react-native';
+import * as FileSystem from 'expo-file-system';
+import * as Sharing from 'expo-sharing';
+
 export function buildBookingReceiptHtml(booking) {
   const eventTitle = booking?.eventId?.title || 'Booking Event';
   const ticketTypeName = booking?.ticketTypeId?.name || 'Ticket Type';
@@ -76,20 +80,93 @@ export function buildBookingReceiptHtml(booking) {
 </html>`;
 }
 
-export function downloadBookingReceipt(booking) {
-  if (typeof window === 'undefined' || typeof document === 'undefined') {
-    return false;
+export function buildBookingReceiptText(booking) {
+  const eventTitle = booking?.eventId?.title || 'Booking Event';
+  const ticketTypeName = booking?.ticketTypeId?.name || 'Ticket Type';
+  const paymentMethod = booking?.paymentMethod || '-';
+  const paymentStatus = booking?.paymentStatus || '-';
+  const paymentReference = booking?.paymentReference || '-';
+  const bookingId = booking?._id || '-';
+  const totalAmount = booking?.totalAmount != null ? booking.totalAmount : '-';
+  const quantity = booking?.quantity != null ? booking.quantity : '-';
+  const createdAt = booking?.createdAt ? new Date(booking.createdAt).toLocaleString() : '-';
+  const completedAt = booking?.paymentCompletedAt ? new Date(booking.paymentCompletedAt).toLocaleString() : '-';
+
+  return [
+    'Evoria Event Booking Receipt',
+    `Booking ID: ${bookingId}`,
+    `Reference: ${paymentReference}`,
+    `Total Amount: ${totalAmount}`,
+    `Event: ${eventTitle}`,
+    `Ticket Type: ${ticketTypeName}`,
+    `Quantity: ${quantity}`,
+    `Payment Method: ${paymentMethod}`,
+    `Payment Status: ${paymentStatus}`,
+    `Payment Completed: ${completedAt}`,
+    `Created At: ${createdAt}`,
+  ].join('\n');
+}
+
+export async function downloadBookingReceipt(booking) {
+  if (!booking) return false;
+
+  if (Platform.OS === 'web') {
+    const html = buildBookingReceiptHtml(booking);
+    const blob = new Blob([html], { type: 'text/html;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `receipt-${booking?._id || 'booking'}.html`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    return true;
   }
 
-  const html = buildBookingReceiptHtml(booking);
-  const blob = new Blob([html], { type: 'text/html;charset=utf-8' });
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement('a');
-  link.href = url;
-  link.download = `booking-receipt-${String(booking?._id || 'receipt').slice(-8)}.html`;
-  document.body.appendChild(link);
-  link.click();
-  link.remove();
-  URL.revokeObjectURL(url);
-  return true;
+  try {
+    const receiptHtml = buildBookingReceiptHtml(booking);
+    const safeReference = String(booking?.paymentReference || booking?._id || 'booking')
+      .replace(/[^a-z0-9-_]/gi, '-')
+      .toLowerCase();
+    const fileName = `booking-receipt-${safeReference}.html`;
+
+    if (Platform.OS === 'android' && FileSystem.StorageAccessFramework?.requestDirectoryPermissionsAsync) {
+      const permission = await FileSystem.StorageAccessFramework.requestDirectoryPermissionsAsync();
+      if (!permission.granted || !permission.directoryUri) {
+        return false;
+      }
+
+      const fileUri = await FileSystem.StorageAccessFramework.createFileAsync(
+        permission.directoryUri,
+        fileName,
+        'text/html'
+      );
+
+      await FileSystem.writeAsStringAsync(fileUri, receiptHtml, {
+        encoding: FileSystem.EncodingType.UTF8,
+      });
+
+      return true;
+    }
+
+    if (await Sharing.isAvailableAsync()) {
+      const fileUri = `${FileSystem.cacheDirectory}${fileName}`;
+      await FileSystem.writeAsStringAsync(fileUri, receiptHtml, {
+        encoding: FileSystem.EncodingType.UTF8,
+      });
+
+      await Sharing.shareAsync(fileUri, {
+        mimeType: 'text/html',
+        dialogTitle: `Receipt ${booking?.paymentReference || booking?._id || ''}`.trim(),
+        UTI: 'public.html',
+      });
+      return true;
+    }
+
+    return false;
+  } catch (error) {
+    console.error('Failed to export booking receipt:', error);
+    return false;
+  }
 }

@@ -124,6 +124,8 @@ export default function ProfileScreen({ navigation }) {
             />
 
             <AppButton title={saving ? 'Saving...' : 'Save Changes'} onPress={onSave} disabled={saving} />
+            <View style={styles.logoutSpacer} />
+            <AppButton title="Logout" variant="danger" onPress={logout} />
           </View>
 
           {user?.role !== 'admin' && (
@@ -134,9 +136,6 @@ export default function ProfileScreen({ navigation }) {
             </View>
           )}
 
-          <View style={styles.menuCard}>
-            <MenuRow icon="🚪" title="Logout" onPress={logout} danger />
-          </View>
         </ScrollView>
       </KeyboardAvoidingView>
     </SafeAreaView>
@@ -170,4 +169,5 @@ const styles = StyleSheet.create({
   cardTitle: { color: UI.text, fontWeight: '900', fontSize: 18 },
   cardSubtitle: { color: UI.muted, fontWeight: '600', fontSize: 13, lineHeight: 20, marginTop: 5, marginBottom: 14 },
   validationNotice: { color: '#B91C1C', backgroundColor: '#FEE2E2', borderRadius: 14, paddingHorizontal: 12, paddingVertical: 10, fontSize: 12, fontWeight: '800', marginBottom: 12 },
+  logoutSpacer: { height: 12 },
 });

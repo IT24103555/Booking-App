@@ -15,6 +15,12 @@ import { API_BASE_URL } from '../../config/apiConfig';
 const UPLOADS_BASE = API_BASE_URL && API_BASE_URL.endsWith('/api') ? API_BASE_URL.slice(0, -4) : API_BASE_URL || 'http://localhost:5000';
 const UI = { primary: '#EC168C', purple: '#7C3AED', background: '#FFF7FC', surface: '#FFFFFF', text: '#111827', muted: '#7C7C8A', border: '#F0DDEB', softPink: '#FFE7F4' };
 const imageUrl = (image) => !image ? null : String(image).startsWith('http') ? image : encodeURI(`${UPLOADS_BASE}${image}`);
+const CATEGORY_LABELS = {
+  music: 'Music',
+  education: 'Education',
+  tech: 'Tech',
+  sports: 'Sports',
+};
 
 function DetailLine({ icon, label, value }) {
   return (
@@ -102,7 +108,7 @@ export default function EventDetailsScreen({ route, navigation }) {
 
               <View style={styles.contentCard}>
                 <Text style={styles.title}>{item.title}</Text>
-                <Text style={styles.category}>{item.category || 'Music Festival'}</Text>
+                <Text style={styles.category}>{item.category ? CATEGORY_LABELS[String(item.category).toLowerCase()] || item.category : 'Unspecified'}</Text>
 
                 <View style={styles.detailsBlock}>
                   <DetailLine icon="📅" label="Date & Time" value={`${formatDate(item.eventDate)} · ${item.startTime || '--:--'} - ${item.endTime || '--:--'}`} />

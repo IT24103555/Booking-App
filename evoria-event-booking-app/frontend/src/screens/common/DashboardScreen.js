@@ -1,8 +1,11 @@
-import React, { useContext } from 'react';
+import React, { useContext, useEffect, useState } from 'react';
 import { Alert, View, Text, StyleSheet, ScrollView, TouchableOpacity, SafeAreaView } from 'react-native';
 import AppButton from '../../components/AppButton';
 import NotificationBellButton from '../../components/NotificationBellButton';
 import { AuthContext } from '../../context/AuthContext';
+import { eventApi } from '../../api/eventApi';
+import { bookingApi } from '../../api/bookingApi';
+import { userApi } from '../../api/userApi';
 
 const UI = { primary: '#EC168C', purple: '#7C3AED', background: '#FFF7FC', surface: '#FFFFFF', text: '#111827', muted: '#7C7C8A', border: '#F0DDEB', softPink: '#FFE7F4' };
 
@@ -35,6 +38,35 @@ function ModuleCard({ item, onPress }) {
 
 export default function DashboardScreen({ navigation }) {
   const { user, logout } = useContext(AuthContext);
+  const [summary, setSummary] = useState({ events: 0, bookings: 0, users: 0, revenue: 0 });
+
+  useEffect(() => {
+    let mounted = true;
+
+    const loadSummary = async () => {
+      try {
+        const [eventsRes, bookingsRes, usersRes] = await Promise.all([
+          eventApi.getAllAdmin?.() || eventApi.getAll(),
+          bookingApi.getAll(),
+          userApi.getAll(),
+        ]);
+
+        const events = Array.isArray(eventsRes?.data) ? eventsRes.data.length : 0;
+        const bookings = Array.isArray(bookingsRes?.data) ? bookingsRes.data : [];
+        const users = Array.isArray(usersRes?.data) ? usersRes.data.length : 0;
+        const revenue = bookings.reduce((total, item) => total + Number(item?.totalAmount || 0), 0);
+
+        if (mounted) {
+          setSummary({ events, bookings: bookings.length, users, revenue });
+        }
+      } catch (error) {
+        console.error('Failed to load dashboard summary:', error);
+      }
+    };
+
+    loadSummary();
+    return () => { mounted = false; };
+  }, []);
 
   const onMenuPress = () => {
     Alert.alert('Menu', 'This shortcut is not connected yet. Use the module cards below.');
@@ -62,10 +94,10 @@ export default function DashboardScreen({ navigation }) {
         </View>
 
         <View style={styles.summaryGrid}>
-          <SummaryCard label="Total Events" value="128" />
-          <SummaryCard label="Total Bookings" value="356" />
-          <SummaryCard label="Total Users" value="2,450" />
-          <SummaryCard label="Total Revenue" value="LKR 75,000" />
+          <SummaryCard label="Total Events" value={String(summary.events)} />
+          <SummaryCard label="Total Bookings" value={String(summary.bookings)} />
+          <SummaryCard label="Total Users" value={String(summary.users)} />
+          <SummaryCard label="Total Revenue" value={`LKR ${summary.revenue.toLocaleString()}`} />
         </View>
 
         <View style={styles.sectionHeader}>

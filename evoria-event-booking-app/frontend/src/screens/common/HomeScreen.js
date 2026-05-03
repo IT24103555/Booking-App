@@ -136,8 +136,7 @@ export default function HomeScreen({ navigation }) {
     }
     if (selectedCategory !== 'all') {
       result = result.filter((e) =>
-        String(e.category || e.title || '').toLowerCase().includes(selectedCategory) ||
-        String(e.description || '').toLowerCase().includes(selectedCategory)
+        String(e.category || '').trim().toLowerCase() === selectedCategory
       );
     }
     return result;
@@ -158,7 +157,7 @@ export default function HomeScreen({ navigation }) {
           <View style={styles.headerRow}>
             <View>
               <Text style={styles.locationLabel}>Location</Text>
-              <Text style={styles.locationText}>📍 Kathmandu, Nepal</Text>
+              <Text style={styles.locationText}>📍 Colombo, Sri Lanka</Text>
             </View>
             <NotificationBellButton size={44} />
           </View>

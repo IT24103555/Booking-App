@@ -2,6 +2,7 @@ import React, { useContext, useEffect, useMemo, useState } from 'react';
 import { useFocusEffect } from '@react-navigation/native';
 import { ScrollView, TouchableOpacity, View, Text, StyleSheet, RefreshControl, Image, SafeAreaView } from 'react-native';
 import { bookingApi } from '../../api/bookingApi';
+import { eventApi } from '../../api/eventApi';
 import { getErrorMessage } from '../../api/apiClient';
 import AppButton from '../../components/AppButton';
 import LoadingSpinner from '../../components/LoadingSpinner';
@@ -21,10 +22,31 @@ function getStatusColor(status) {
 }
 
 function BookingCard({ item, onPress }) {
-  const eventTitle = item.eventId?.title || 'Event not loaded';
-  const venueName = item.eventId?.venueId?.name || 'Venue TBA';
+  const [eventData, setEventData] = React.useState(
+    item && item.eventId && typeof item.eventId === 'object' ? item.eventId : null
+  );
+
+  React.useEffect(() => {
+    let mounted = true;
+    const fetchIfNeeded = async () => {
+      try {
+        if (!eventData && item && item.eventId && typeof item.eventId === 'string') {
+          const res = await eventApi.getById(item.eventId);
+          if (mounted) setEventData(res.data || null);
+        }
+      } catch (e) {
+        // ignore - UI will show fallback text
+        console.error('Failed to load event for booking list:', e);
+      }
+    };
+    fetchIfNeeded();
+    return () => { mounted = false; };
+  }, [item, eventData]);
+
+  const eventTitle = eventData?.title || 'Event not loaded';
+  const venueName = eventData?.venueId?.name || 'Venue TBA';
   const statusColor = getStatusColor(item.status);
-  const uri = imageUrl(item.eventId?.image);
+  const uri = imageUrl(eventData?.image || item.eventId?.image);
 
   return (
     <TouchableOpacity activeOpacity={0.88} onPress={onPress} style={styles.card}>
@@ -36,7 +58,7 @@ function BookingCard({ item, onPress }) {
             <Text style={[styles.statusText, { color: statusColor }]}>{item.status}</Text>
           </View>
         </View>
-        <Text style={styles.cardMeta} numberOfLines={1}>{formatDate(item.eventId?.eventDate || item.createdAt)}</Text>
+        <Text style={styles.cardMeta} numberOfLines={1}>{formatDate(eventData?.eventDate || item.createdAt)}</Text>
         <Text style={styles.cardMeta} numberOfLines={1}>{venueName}</Text>
         <View style={styles.cardFooter}>
           <Text style={styles.ticketText}>{item.quantity || 0} Ticket{Number(item.quantity) === 1 ? '' : 's'}</Text>
@@ -63,7 +85,7 @@ export default function BookingListScreen({ navigation, route }) {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState('');
-  const [tab, setTab] = useState('Upcoming');
+  const [tab, setTab] = useState('Pending');
   const hasLoadedRef = React.useRef(false);
 
   const load = async (isRefresh = false) => {
@@ -107,8 +129,8 @@ export default function BookingListScreen({ navigation, route }) {
   const cancelledCount = items.filter((b) => b.status === 'Cancelled').length;
 
   const filtered = useMemo(() => {
-    if (tab === 'Past') return items.filter((b) => b.status === 'Cancelled');
-    return items.filter((b) => b.status !== 'Cancelled');
+    if (tab === 'Pending') return items.filter((b) => b.status === 'Pending');
+    return items.filter((b) => b.status === 'Confirmed' || b.status === 'Cancelled');
   }, [items, tab]);
 
   if (loading) return <LoadingSpinner />;
@@ -142,9 +164,12 @@ export default function BookingListScreen({ navigation, route }) {
           </View>
 
           <View style={styles.tabRow}>
-            {['Upcoming', 'Past'].map((item) => (
-              <TouchableOpacity key={item} style={[styles.tabButton, tab === item && styles.tabButtonActive]} onPress={() => setTab(item)}>
-                <Text style={[styles.tabText, tab === item && styles.tabTextActive]}>{item}</Text>
+            {[
+              { key: 'Pending', label: 'Pending' },
+              { key: 'Processed', label: 'Confirmed / Cancelled' },
+            ].map((item) => (
+              <TouchableOpacity key={item.key} style={[styles.tabButton, tab === item.key && styles.tabButtonActive]} onPress={() => setTab(item.key)}>
+                <Text style={[styles.tabText, tab === item.key && styles.tabTextActive]}>{item.label}</Text>
               </TouchableOpacity>
             ))}
           </View>
@@ -179,9 +204,9 @@ const styles = StyleSheet.create({
   statValue: { fontSize: 20, fontWeight: '900' },
   statLabel: { color: UI.muted, fontSize: 11, fontWeight: '800', marginTop: 4 },
   tabRow: { flexDirection: 'row', backgroundColor: '#fff', borderRadius: 18, padding: 5, borderWidth: 1, borderColor: UI.border, marginBottom: 16 },
-  tabButton: { flex: 1, alignItems: 'center', paddingVertical: 11, borderRadius: 14 },
+  tabButton: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingVertical: 10, borderRadius: 14, minHeight: 48 },
   tabButtonActive: { backgroundColor: UI.primary },
-  tabText: { color: UI.muted, fontWeight: '900' },
+  tabText: { color: UI.muted, fontWeight: '900', fontSize: 11, textAlign: 'center', lineHeight: 14 },
   tabTextActive: { color: '#fff' },
   list: { gap: 14 },
   card: { backgroundColor: '#fff', borderRadius: 24, padding: 10, flexDirection: 'row', borderWidth: 1, borderColor: UI.border, shadowColor: '#9D174D', shadowOffset: { width: 0, height: 10 }, shadowOpacity: 0.08, shadowRadius: 18, elevation: 6 },
