@@ -13,6 +13,7 @@ const MODULES = [
   { title: 'Events', description: 'Publish and manage upcoming events.', route: 'EventList', icon: '🗓️' },
   { title: 'Bookings', description: 'Review reservations and booking status.', route: 'BookingList', icon: '✅' },
   { title: 'Session Agendas', description: 'Organize sessions, speakers, and schedules.', route: 'SessionAgendaList', icon: '🎤' },
+  { title: 'Settings', description: 'Update your profile and account settings.', route: 'Settings', icon: '⚙️' },
 ];
 
 function SummaryCard({ label, value }) {
@@ -47,6 +48,9 @@ export default function DashboardScreen({ navigation }) {
           <Text style={styles.headerTitle}>Admin Dashboard</Text>
           <View style={styles.headerActions}>
             <NotificationBellButton size={40} />
+            <TouchableOpacity style={styles.iconButton} onPress={() => navigation.navigate('Settings')}>
+              <Text style={styles.menuText}>⚙️</Text>
+            </TouchableOpacity>
             <TouchableOpacity style={styles.menuButton} onPress={onMenuPress}><Text style={styles.menuText}>☰</Text></TouchableOpacity>
           </View>
         </View>
@@ -88,6 +92,7 @@ const styles = StyleSheet.create({
   backText: { color: UI.text, fontSize: 28, lineHeight: 28, fontWeight: '900' },
   menuButton: { width: 40, height: 40, borderRadius: 14, backgroundColor: '#fff', alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: UI.border },
   menuText: { color: UI.text, fontSize: 18, fontWeight: '900' },
+  iconButton: { width: 40, height: 40, borderRadius: 14, backgroundColor: '#fff', alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: UI.border, marginHorizontal: 6 },
   headerTitle: { color: UI.text, fontWeight: '900', fontSize: 17 },
   heroCard: { backgroundColor: UI.primary, borderRadius: 28, padding: 22, marginBottom: 16, shadowColor: UI.primary, shadowOffset: { width: 0, height: 14 }, shadowOpacity: 0.25, shadowRadius: 20, elevation: 9 },
   kicker: { color: 'rgba(255,255,255,0.8)', fontSize: 12, fontWeight: '900', textTransform: 'uppercase', letterSpacing: 0.6 },
