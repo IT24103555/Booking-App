@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { FlatList, Modal, SafeAreaView, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { convertTimeToMinutes } from '../utils/validators';
 
 const DEFAULT_THEME = {
   primary: '#EC168C',
@@ -183,9 +184,12 @@ export function TimePickerModal({
   value,
   onClose,
   onSelect,
+  onInvalidSelect,
   theme = DEFAULT_THEME,
   title = 'Select Time',
   intervalMinutes = 15,
+  minMinutes = null,
+  disabledMessage = 'Past times cannot be selected.',
 }) {
   const options = useMemo(() => buildTimeOptions(intervalMinutes), [intervalMinutes]);
 
@@ -206,17 +210,29 @@ export function TimePickerModal({
           contentContainerStyle={styles.timeList}
           renderItem={({ item }) => {
             const selected = item === value;
+            const itemMinutes = convertTimeToMinutes(item);
+            const disabled = typeof minMinutes === 'number' && itemMinutes < minMinutes;
             return (
               <TouchableOpacity
                 activeOpacity={0.85}
-                onPress={() => onSelect(item)}
+                onPress={() => {
+                  if (disabled) {
+                    if (onInvalidSelect) onInvalidSelect(disabledMessage);
+                    return;
+                  }
+                  onSelect(item);
+                }}
                 style={[
                   styles.timeRow,
                   { backgroundColor: theme.surface, borderColor: theme.border },
                   selected && { backgroundColor: theme.soft, borderColor: theme.primary },
+                  disabled && styles.timeRowDisabled,
                 ]}
               >
-                <Text style={[styles.timeText, { color: theme.text, fontWeight: selected ? '900' : '700' }]}>{item}</Text>
+                <Text style={[
+                  styles.timeText,
+                  { color: disabled ? theme.muted : theme.text, fontWeight: selected ? '900' : '700' },
+                ]}>{item}</Text>
                 {selected ? <Text style={[styles.selectedMark, { color: theme.primary }]}>✓</Text> : null}
               </TouchableOpacity>
             );
@@ -288,6 +304,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
   },
+  timeRowDisabled: { opacity: 0.45 },
   timeText: { fontSize: 15 },
   selectedMark: { fontSize: 18, fontWeight: '900' },
 });
