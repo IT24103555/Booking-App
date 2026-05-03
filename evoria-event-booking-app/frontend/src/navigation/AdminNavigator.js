@@ -32,6 +32,7 @@ import EditSessionAgendaScreen from '../screens/sessionAgenda/EditSessionAgendaS
 import SessionAgendaDetailsScreen from '../screens/sessionAgenda/SessionAgendaDetailsScreen';
 
 import NotificationScreen from '../screens/notifications/NotificationScreen';
+import ProfileScreen from '../screens/common/ProfileScreen';
 
 const Stack = createNativeStackNavigator();
 
@@ -72,6 +73,7 @@ export default function AdminNavigator() {
         component={SessionAgendaDetailsScreen}
         options={{ title: 'Session Details' }}
       />
+      <Stack.Screen name="Settings" component={ProfileScreen} options={{ title: 'Settings' }} />
     </Stack.Navigator>
   );
 }
