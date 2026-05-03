@@ -14,7 +14,7 @@ import AppInput from '../../components/AppInput';
 import AppButton from '../../components/AppButton';
 import ErrorMessage from '../../components/ErrorMessage';
 import { AuthContext } from '../../context/AuthContext';
-import { isEmail, isRequired, minLength } from '../../utils/validators';
+import { validateEmail, validateLoginForm } from '../../utils/passwordValidators';
 
 const UI = {
   primary: '#EC168C',
@@ -32,13 +32,52 @@ export default function LoginScreen({ navigation }) {
   const { login } = useContext(AuthContext);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [error, setError] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
+  const [globalError, setGlobalError] = useState('');
+  const [errors, setErrors] = useState({});
   const [loading, setLoading] = useState(false);
 
+  // Validation on field change
+  const handleEmailChange = (value) => {
+    setEmail(value);
+    const error = validateEmail(value);
+    setErrors((prev) => {
+      if (error) {
+        return { ...prev, email: error };
+      } else {
+        const { email: _, ...rest } = prev;
+        return rest;
+      }
+    });
+  };
+
+  const handlePasswordChange = (value) => {
+    setPassword(value);
+    if (!value) {
+      setErrors((prev) => ({ ...prev, password: 'Password is required.' }));
+    } else if (value.length < 6) {
+      setErrors((prev) => ({ ...prev, password: 'Password must be at least 6 characters.' }));
+    } else {
+      setErrors((prev) => {
+        const { password: _, ...rest } = prev;
+        return rest;
+      });
+    }
+  };
+
+  const validationHasErrors = Object.keys(errors).length > 0;
+
   const onSubmit = async () => {
-    setError('');
-    if (!isRequired(email) || !isEmail(email)) return setError('Please enter a valid email address.');
-    if (!isRequired(password) || !minLength(password, 6)) return setError('Password must contain at least 6 characters.');
+    setGlobalError('');
+
+    // Full validation check
+    const validation = validateLoginForm({ email, password });
+
+    if (!validation.valid) {
+      setErrors(validation.errors);
+      setGlobalError('Please fix the highlighted fields.');
+      return;
+    }
 
     try {
       setLoading(true);
@@ -71,29 +110,48 @@ export default function LoginScreen({ navigation }) {
           <Text style={styles.subtitle}>Login to continue to Evoria</Text>
 
           <View style={styles.formCard}>
-            <ErrorMessage message={error} />
+            <ErrorMessage message={globalError} />
 
+            {/* Email Field */}
             <AppInput
               label="Email Address"
               value={email}
-              onChangeText={setEmail}
+              onChangeText={handleEmailChange}
               placeholder="you@example.com"
               keyboardType="email-address"
               autoCapitalize="none"
+              error={errors.email}
             />
-            <AppInput
-              label="Password"
-              value={password}
-              onChangeText={setPassword}
-              placeholder="Enter your password"
-              secureTextEntry
-            />
+            {errors.email && <Text style={styles.errorText}>{errors.email}</Text>}
+
+            {/* Password Field */}
+            <View>
+              <View style={styles.passwordLabelRow}>
+                <Text style={styles.label}>Password</Text>
+              </View>
+              <View style={[styles.passwordInputContainer, errors.password && styles.inputError]}>
+                <AppInput
+                  value={password}
+                  onChangeText={handlePasswordChange}
+                  placeholder="Enter your password"
+                  secureTextEntry={!showPassword}
+                  style={{ flex: 1 }}
+                />
+                <TouchableOpacity
+                  onPress={() => setShowPassword(!showPassword)}
+                  style={styles.passwordToggleButton}
+                >
+                  <Text style={styles.passwordToggleIcon}>{showPassword ? '👁️' : '👁️‍🗨️'}</Text>
+                </TouchableOpacity>
+              </View>
+              {errors.password && <Text style={styles.errorText}>{errors.password}</Text>}
+            </View>
 
             <TouchableOpacity activeOpacity={0.8} style={styles.forgotButton} onPress={onForgotPassword}>
               <Text style={styles.forgotText}>Forgot Password?</Text>
             </TouchableOpacity>
 
-            <AppButton title={loading ? 'Logging in...' : 'Login'} onPress={onSubmit} disabled={loading} />
+            <AppButton title={loading ? 'Logging in...' : 'Login'} onPress={onSubmit} disabled={loading || validationHasErrors} />
 
             <View style={styles.dividerRow}>
               <View style={styles.divider} />
@@ -180,6 +238,47 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.09,
     shadowRadius: 24,
     elevation: 8,
+  },
+  label: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: UI.text,
+    marginBottom: 8,
+  },
+  errorText: {
+    color: '#EF4444',
+    fontSize: 12,
+    fontWeight: '600',
+    marginTop: -6,
+    marginBottom: 12,
+    marginLeft: 4,
+  },
+  passwordLabelRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  passwordInputContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderWidth: 1.5,
+    borderColor: UI.border,
+    borderRadius: 14,
+    paddingRight: 8,
+    marginBottom: 2,
+    backgroundColor: '#FAFAFA',
+  },
+  inputError: {
+    borderColor: '#EF4444',
+    backgroundColor: '#FEF2F2',
+  },
+  passwordToggleButton: {
+    padding: 10,
+    marginLeft: 4,
+  },
+  passwordToggleIcon: {
+    fontSize: 18,
   },
   forgotButton: { alignSelf: 'flex-end', marginTop: -4, marginBottom: 18 },
   forgotText: { color: UI.primary, fontWeight: '800', fontSize: 12 },

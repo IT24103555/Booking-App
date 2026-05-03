@@ -13,7 +13,8 @@ import AppInput from '../../components/AppInput';
 import AppButton from '../../components/AppButton';
 import ErrorMessage from '../../components/ErrorMessage';
 import { AuthContext } from '../../context/AuthContext';
-import { isEmail, isRequired, minLength } from '../../utils/validators';
+import { validateName, validatePhone } from '../../utils/accountValidators';
+import { validateEmail, validatePassword, validatePasswordConfirm, getPasswordStrength, validateAdminForm } from '../../utils/passwordValidators';
 
 const UI = {
   primary: '#EC168C',
@@ -31,17 +32,115 @@ export default function AdminRegisterScreen({ navigation }) {
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
   const [phone, setPhone] = useState('');
   const [adminKey, setAdminKey] = useState('');
-  const [error, setError] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [globalError, setGlobalError] = useState('');
+  const [errors, setErrors] = useState({});
   const [loading, setLoading] = useState(false);
 
+  const passwordStrength = getPasswordStrength(password);
+
+  // Validation on field change
+  const handleNameChange = (value) => {
+    setName(value);
+    const error = validateName(value);
+    setErrors((prev) => {
+      if (error) {
+        return { ...prev, name: error };
+      } else {
+        const { name: _, ...rest } = prev;
+        return rest;
+      }
+    });
+  };
+
+  const handleEmailChange = (value) => {
+    setEmail(value);
+    const error = validateEmail(value);
+    setErrors((prev) => {
+      if (error) {
+        return { ...prev, email: error };
+      } else {
+        const { email: _, ...rest } = prev;
+        return rest;
+      }
+    });
+  };
+
+  const handlePasswordChange = (value) => {
+    setPassword(value);
+    const error = validatePassword(value);
+    setErrors((prev) => {
+      if (error) {
+        return { ...prev, password: error };
+      } else {
+        const { password: _, ...rest } = prev;
+        return rest;
+      }
+    });
+  };
+
+  const handleConfirmPasswordChange = (value) => {
+    setConfirmPassword(value);
+    const error = validatePasswordConfirm(password, value);
+    setErrors((prev) => {
+      if (error) {
+        return { ...prev, confirmPassword: error };
+      } else {
+        const { confirmPassword: _, ...rest } = prev;
+        return rest;
+      }
+    });
+  };
+
+  const handlePhoneChange = (value) => {
+    setPhone(value);
+    const error = validatePhone(value);
+    setErrors((prev) => {
+      if (error) {
+        return { ...prev, phone: error };
+      } else {
+        const { phone: _, ...rest } = prev;
+        return rest;
+      }
+    });
+  };
+
+  const handleAdminKeyChange = (value) => {
+    setAdminKey(value);
+    if (value.trim().length < 6) {
+      setErrors((prev) => ({ ...prev, adminKey: 'Admin key must be at least 6 characters.' }));
+    } else {
+      setErrors((prev) => {
+        const { adminKey: _, ...rest } = prev;
+        return rest;
+      });
+    }
+  };
+
+  const validationHasErrors = Object.keys(errors).length > 0;
+
   const onSubmit = async () => {
-    setError('');
-    if (!isRequired(name)) return setError('Name is required.');
-    if (!isRequired(email) || !isEmail(email)) return setError('Please enter a valid email address.');
-    if (!isRequired(password) || !minLength(password, 6)) return setError('Password must contain at least 6 characters.');
-    if (!isRequired(adminKey)) return setError('Admin key is required.');
+    setGlobalError('');
+
+    // Full validation check
+    const validation = validateAdminForm({
+      name,
+      email,
+      password,
+      confirmPassword,
+      phone,
+      adminKey,
+    });
+
+    if (!validation.valid) {
+      setErrors(validation.errors);
+      setGlobalError('Please fix the highlighted fields before proceeding.');
+      return;
+    }
 
     try {
       setLoading(true);
@@ -66,19 +165,113 @@ export default function AdminRegisterScreen({ navigation }) {
           <Text style={styles.subtitle}>Use your admin key to manage users, events, tickets, venues and bookings.</Text>
 
           <View style={styles.formCard}>
-            <ErrorMessage message={error} />
-            <AppInput label="Full Name" value={name} onChangeText={setName} placeholder="Admin full name" />
-            <AppInput label="Email Address" value={email} onChangeText={setEmail} placeholder="admin@example.com" keyboardType="email-address" autoCapitalize="none" />
-            <AppInput label="Password" value={password} onChangeText={setPassword} placeholder="Minimum 6 characters" secureTextEntry />
-            <AppInput label="Phone Number" value={phone} onChangeText={setPhone} placeholder="Optional phone number" keyboardType="phone-pad" />
-            <AppInput label="Admin Key" value={adminKey} onChangeText={setAdminKey} placeholder="Enter admin key" secureTextEntry />
+            <ErrorMessage message={globalError} />
+
+            {/* Name Field */}
+            <AppInput
+              label="Full Name"
+              value={name}
+              onChangeText={handleNameChange}
+              placeholder="Admin full name"
+              error={errors.name}
+            />
+            {errors.name && <Text style={styles.errorText}>{errors.name}</Text>}
+
+            {/* Email Field */}
+            <AppInput
+              label="Email Address"
+              value={email}
+              onChangeText={handleEmailChange}
+              placeholder="admin@example.com"
+              keyboardType="email-address"
+              autoCapitalize="none"
+              error={errors.email}
+            />
+            {errors.email && <Text style={styles.errorText}>{errors.email}</Text>}
+
+            {/* Password Field */}
+            <View>
+              <View style={styles.passwordLabelRow}>
+                <Text style={styles.label}>Password</Text>
+                {password && (
+                  <View style={[styles.strengthIndicator, { backgroundColor: passwordStrength.color }]}>
+                    <Text style={styles.strengthText}>{passwordStrength.label}</Text>
+                  </View>
+                )}
+              </View>
+              <View style={[styles.passwordInputContainer, errors.password && styles.inputError]}>
+                <AppInput
+                  value={password}
+                  onChangeText={handlePasswordChange}
+                  placeholder="At least 8 characters with uppercase, lowercase & number"
+                  secureTextEntry={!showPassword}
+                  style={{ flex: 1 }}
+                />
+                <TouchableOpacity
+                  onPress={() => setShowPassword(!showPassword)}
+                  style={styles.passwordToggleButton}
+                >
+                  <Text style={styles.passwordToggleIcon}>{showPassword ? '👁️' : '👁️‍🗨️'}</Text>
+                </TouchableOpacity>
+              </View>
+              {errors.password && <Text style={styles.errorText}>{errors.password}</Text>}
+            </View>
+
+            {/* Confirm Password Field */}
+            <View>
+              <View style={styles.passwordLabelRow}>
+                <Text style={styles.label}>Confirm Password</Text>
+              </View>
+              <View style={[styles.passwordInputContainer, errors.confirmPassword && styles.inputError]}>
+                <AppInput
+                  value={confirmPassword}
+                  onChangeText={handleConfirmPasswordChange}
+                  placeholder="Re-enter your password"
+                  secureTextEntry={!showConfirmPassword}
+                  style={{ flex: 1 }}
+                />
+                <TouchableOpacity
+                  onPress={() => setShowConfirmPassword(!showConfirmPassword)}
+                  style={styles.passwordToggleButton}
+                >
+                  <Text style={styles.passwordToggleIcon}>{showConfirmPassword ? '👁️' : '👁️‍🗨️'}</Text>
+                </TouchableOpacity>
+              </View>
+              {errors.confirmPassword && <Text style={styles.errorText}>{errors.confirmPassword}</Text>}
+            </View>
+
+            {/* Phone Field */}
+            <AppInput
+              label="Phone Number"
+              value={phone}
+              onChangeText={handlePhoneChange}
+              placeholder="Optional phone number"
+              keyboardType="phone-pad"
+              error={errors.phone}
+            />
+            {errors.phone && <Text style={styles.errorText}>{errors.phone}</Text>}
+
+            {/* Admin Key Field */}
+            <AppInput
+              label="Admin Key"
+              value={adminKey}
+              onChangeText={handleAdminKeyChange}
+              placeholder="Enter admin key"
+              secureTextEntry
+              error={errors.adminKey}
+            />
+            {errors.adminKey && <Text style={styles.errorText}>{errors.adminKey}</Text>}
 
             <View style={styles.warningCard}>
               <Text style={styles.warningIcon}>🔐</Text>
               <Text style={styles.warningText}>Admin accounts have access to platform management features. Keep your login details secure.</Text>
             </View>
 
-            <AppButton title={loading ? 'Creating admin...' : 'Create Admin'} onPress={onSubmit} disabled={loading} />
+            <AppButton
+              title={loading ? 'Creating admin...' : 'Create Admin'}
+              onPress={onSubmit}
+              disabled={loading || validationHasErrors}
+            />
 
             <TouchableOpacity onPress={() => navigation.navigate('Login')} style={styles.backLink}>
               <Text style={styles.backLinkText}>Back to Login</Text>
@@ -108,6 +301,57 @@ const styles = StyleSheet.create({
   formCard: {
     backgroundColor: UI.card, borderRadius: 28, padding: 18, borderWidth: 1, borderColor: UI.border,
     shadowColor: '#9D174D', shadowOffset: { width: 0, height: 18 }, shadowOpacity: 0.09, shadowRadius: 24, elevation: 8,
+  },
+  label: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: UI.text,
+    marginBottom: 8,
+  },
+  errorText: {
+    color: '#EF4444',
+    fontSize: 12,
+    fontWeight: '600',
+    marginTop: -6,
+    marginBottom: 12,
+    marginLeft: 4,
+  },
+  passwordLabelRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  strengthIndicator: {
+    paddingHorizontal: 12,
+    paddingVertical: 4,
+    borderRadius: 12,
+  },
+  strengthText: {
+    color: '#FFFFFF',
+    fontSize: 11,
+    fontWeight: '700',
+  },
+  passwordInputContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderWidth: 1.5,
+    borderColor: UI.border,
+    borderRadius: 14,
+    paddingRight: 8,
+    marginBottom: 2,
+    backgroundColor: '#FAFAFA',
+  },
+  inputError: {
+    borderColor: '#EF4444',
+    backgroundColor: '#FEF2F2',
+  },
+  passwordToggleButton: {
+    padding: 10,
+    marginLeft: 4,
+  },
+  passwordToggleIcon: {
+    fontSize: 18,
   },
   warningCard: { flexDirection: 'row', gap: 10, backgroundColor: '#FFF0F8', borderWidth: 1, borderColor: UI.border, borderRadius: 18, padding: 12, marginVertical: 18 },
   warningIcon: { fontSize: 18 },

@@ -1,5 +1,8 @@
 const Joi = require('joi');
 
+// Advanced password validation: must contain uppercase, lowercase, number, min 8 chars
+const passwordPattern = /^(?=.*[A-Z])(?=.*[a-z])(?=.*\d).{8,}$/;
+
 const registerSchema = Joi.object({
   name: Joi.string().trim().required().messages({
     'any.required': 'Name is required',
@@ -9,10 +12,15 @@ const registerSchema = Joi.object({
     'any.required': 'Email is required',
     'string.email': 'Valid email is required',
   }),
-  password: Joi.string().min(6).required().messages({
-    'any.required': 'Password is required',
-    'string.min': 'Password must be at least 6 characters',
-  }),
+  password: Joi.string()
+    .min(8)
+    .pattern(passwordPattern)
+    .required()
+    .messages({
+      'any.required': 'Password is required',
+      'string.min': 'Password must be at least 8 characters',
+      'string.pattern.base': 'Password must contain uppercase letter (A-Z), lowercase letter (a-z), and number (0-9)',
+    }),
   phone: Joi.string().allow('', null).pattern(/^[+0-9\s-]{7,20}$/).messages({
     'string.pattern.base': 'Phone must be valid if provided',
   }),
@@ -29,10 +37,9 @@ const loginSchema = Joi.object({
     'any.required': 'Email is required',
     'string.email': 'Valid email is required',
   }),
-  password: Joi.string().min(6).required().messages({
+  password: Joi.string().required().messages({
     'any.required': 'Password is required',
-    'string.min': 'Password must be at least 6 characters',
   }),
 });
 
-module.exports = { registerSchema, loginSchema };
+module.exports = { registerSchema, loginSchema, passwordPattern };
