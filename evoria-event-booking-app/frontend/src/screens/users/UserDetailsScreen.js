@@ -1,4 +1,5 @@
 import React, { useContext, useEffect, useMemo, useState } from 'react';
+import { useFocusEffect } from '@react-navigation/native';
 import { Alert, ScrollView, View, Text, StyleSheet } from 'react-native';
 import { userApi } from '../../api/userApi';
 import { getErrorMessage } from '../../api/apiClient';
@@ -13,9 +14,33 @@ function InfoRow({ label, value }) { return <View style={styles.infoRow}><Text s
 function StatusPill({ active }) { return <View style={[styles.statusPill, active ? styles.activePill : styles.inactivePill]}><Text style={[styles.statusText, active ? styles.activeText : styles.inactiveText]}>{active ? 'Active' : 'Inactive'}</Text></View>; }
 export default function UserDetailsScreen({ route, navigation }) {
   const { user: currentUser } = useContext(AuthContext);
-  const { id } = route.params; const [item, setItem] = useState(null); const [loading, setLoading] = useState(true); const [error, setError] = useState('');
-  const load = async () => { try { setError(''); setLoading(true); const res = await userApi.getById(id); setItem(res.data); } catch (e) { setError(getErrorMessage(e)); setItem(null); } finally { setLoading(false); } };
+  const { id } = route.params;
+  const [item, setItem] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
+
+  const load = async ({ silent = false } = {}) => {
+    try {
+      setError('');
+      if (!silent) setLoading(true);
+      const res = await userApi.getById(id);
+      setItem(res.data);
+    } catch (e) {
+      setError(getErrorMessage(e));
+      setItem(null);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   useEffect(() => { load(); }, [id]);
+
+  // Auto-refresh when screen comes into focus
+  useFocusEffect(
+    React.useCallback(() => {
+      load({ silent: true });
+    }, [id])
+  );
   const initials = useMemo(() => { const source = item?.name || item?.email || 'U'; return source.split(' ').filter(Boolean).slice(0, 2).map((part) => part.charAt(0).toUpperCase()).join(''); }, [item]);
   const isOwnAccount = Boolean(currentUser?._id && item?._id && String(currentUser._id) === String(item._id));
   const isAdminAccount = item?.role === 'admin';

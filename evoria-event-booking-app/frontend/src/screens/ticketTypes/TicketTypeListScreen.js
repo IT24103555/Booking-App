@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { FlatList, TouchableOpacity, View, Text, TextInput, StyleSheet } from 'react-native';
+import { useFocusEffect } from '@react-navigation/native';
+import { FlatList, TouchableOpacity, View, Text, TextInput, StyleSheet, RefreshControl } from 'react-native';
 import { ticketTypeApi } from '../../api/ticketTypeApi';
 import { getErrorMessage } from '../../api/apiClient';
 import AppButton from '../../components/AppButton';
@@ -16,9 +17,38 @@ const getAvailabilityPercent = (available, total) => {
 function StatusPill({ status }) { const active = status === 'Active'; return <View style={[styles.statusPill, active ? styles.activePill : styles.inactivePill]}><Text style={[styles.statusText, active ? styles.activeText : styles.inactiveText]}>{status || 'Unknown'}</Text></View>; }
 
 export default function TicketTypeListScreen({ navigation }) {
-  const [items, setItems] = useState([]); const [loading, setLoading] = useState(true); const [error, setError] = useState(''); const [search, setSearch] = useState('');
-  const load = async () => { try { setError(''); setLoading(true); const res = await ticketTypeApi.getAll(); setItems(res.data || []); } catch (e) { setError(getErrorMessage(e)); } finally { setLoading(false); } };
+  const [items, setItems] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [error, setError] = useState('');
+  const [search, setSearch] = useState('');
+
+  // Enhanced load function with refresh state support
+  const load = async (isRefresh = false) => {
+    try {
+      setError('');
+      isRefresh ? setRefreshing(true) : setLoading(true);
+      const res = await ticketTypeApi.getAll();
+      setItems(res.data || []);
+    } catch (e) {
+      setError(getErrorMessage(e));
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  };
+
+  // Initial load on mount
   useEffect(() => { load(); }, []);
+
+  // Auto-refresh when screen comes into focus
+  useFocusEffect(
+    React.useCallback(() => {
+      if (items.length > 0) {
+        load(true); // Silently refresh
+      }
+    }, [])
+  );
   const filteredItems = useMemo(() => { const value = search.trim().toLowerCase(); if (!value) return items; return items.filter((item) => `${item.name || ''} ${item.description || ''} ${item.status || ''} ${item.eventId?.title || ''}`.toLowerCase().includes(value)); }, [items, search]);
   const summary = useMemo(() => items.reduce((acc, item) => ({ total: acc.total + 1, available: acc.available + (Number(item.availableQuantity) || 0), capacity: acc.capacity + (Number(item.totalQuantity) || 0) }), { total: 0, available: 0, capacity: 0 }), [items]);
   if (loading) return <LoadingSpinner />;
@@ -27,7 +57,7 @@ export default function TicketTypeListScreen({ navigation }) {
       <View style={styles.heroCard}><Text style={styles.kicker}>Inventory</Text><Text style={styles.pageTitle}>Ticket Types</Text><Text style={styles.pageSubtitle}>Create, monitor, and control every ticket category from one polished workspace.</Text><View style={styles.statsRow}><View style={styles.statCard}><Text style={styles.statValue}>{summary.total}</Text><Text style={styles.statLabel}>Types</Text></View><View style={styles.statCard}><Text style={styles.statValue}>{summary.available}</Text><Text style={styles.statLabel}>Available</Text></View><View style={styles.statCard}><Text style={styles.statValue}>{summary.capacity}</Text><Text style={styles.statLabel}>Capacity</Text></View></View></View>
       <View style={styles.toolbar}><TextInput value={search} onChangeText={setSearch} placeholder="Search ticket type, event, or status" placeholderTextColor="#9A8EA4" style={styles.searchInput} /><AppButton title="Add Ticket Type" onPress={() => navigation.navigate('AddTicketType')} /></View>
       <ErrorMessage message={error} />
-      {filteredItems.length === 0 ? <EmptyState title={items.length === 0 ? 'No ticket types' : 'No matching ticket types'} actionTitle="Reload" onAction={load} /> : <FlatList data={filteredItems} keyExtractor={(item) => item._id} contentContainerStyle={styles.listContent} showsVerticalScrollIndicator={false} renderItem={({ item }) => { const percent = getAvailabilityPercent(item.availableQuantity, item.totalQuantity); return <TouchableOpacity activeOpacity={0.86} onPress={() => navigation.navigate('TicketTypeDetails', { id: item._id })} style={styles.card}><View style={styles.cardTop}><View style={styles.ticketIcon}><Text style={styles.ticketIconText}>🎟</Text></View><View style={styles.cardCopy}><Text style={styles.title}>{item.name}</Text><Text style={styles.subtitle}>{formatCurrency(item.price)}</Text><Text style={styles.eventLabel} numberOfLines={1}>{item.eventId?.title || 'Event not assigned'}</Text></View><StatusPill status={item.status} /></View><Text style={styles.description} numberOfLines={2}>{item.description || 'No description provided'}</Text><View style={styles.progressHeader}><Text style={styles.meta}>Availability</Text><Text style={styles.metaStrong}>{item.availableQuantity}/{item.totalQuantity}</Text></View><View style={styles.progressTrack}><View style={[styles.progressFill, { width: `${percent}%` }]} /></View></TouchableOpacity>; }} />}
+      {filteredItems.length === 0 ? <EmptyState title={items.length === 0 ? 'No ticket types' : 'No matching ticket types'} actionTitle="Reload" onAction={load} /> : <FlatList data={filteredItems} keyExtractor={(item) => item._id} contentContainerStyle={styles.listContent} showsVerticalScrollIndicator={false} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => load(true)} tintColor="#F80678" />} renderItem={({ item }) => { const percent = getAvailabilityPercent(item.availableQuantity, item.totalQuantity); return <TouchableOpacity activeOpacity={0.86} onPress={() => navigation.navigate('TicketTypeDetails', { id: item._id })} style={styles.card}><View style={styles.cardTop}><View style={styles.ticketIcon}><Text style={styles.ticketIconText}>🎟</Text></View><View style={styles.cardCopy}><Text style={styles.title}>{item.name}</Text><Text style={styles.subtitle}>{formatCurrency(item.price)}</Text><Text style={styles.eventLabel} numberOfLines={1}>{item.eventId?.title || 'Event not assigned'}</Text></View><StatusPill status={item.status} /></View><Text style={styles.description} numberOfLines={2}>{item.description || 'No description provided'}</Text><View style={styles.progressHeader}><Text style={styles.meta}>Availability</Text><Text style={styles.metaStrong}>{item.availableQuantity}/{item.totalQuantity}</Text></View><View style={styles.progressTrack}><View style={[styles.progressFill, { width: `${percent}%` }]} /></View></TouchableOpacity>; }} />}
     </View>
   );
 }

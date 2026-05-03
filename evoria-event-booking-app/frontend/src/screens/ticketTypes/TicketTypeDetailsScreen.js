@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { useFocusEffect } from '@react-navigation/native';
 import { Alert, ScrollView, View, Text, StyleSheet } from 'react-native';
 import { ticketTypeApi } from '../../api/ticketTypeApi';
 import { getErrorMessage } from '../../api/apiClient';
@@ -18,8 +19,29 @@ export default function TicketTypeDetailsScreen({ route, navigation }) {
   const [item, setItem] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  const load = async () => { try { setError(''); setLoading(true); const res = await ticketTypeApi.getById(id); setItem(res.data); } catch (e) { setError(getErrorMessage(e)); setItem(null); } finally { setLoading(false); } };
+  
+  const load = async ({ silent = false } = {}) => {
+    try {
+      setError('');
+      if (!silent) setLoading(true);
+      const res = await ticketTypeApi.getById(id);
+      setItem(res.data);
+    } catch (e) {
+      setError(getErrorMessage(e));
+      setItem(null);
+    } finally {
+      setLoading(false);
+    }
+  };
+  
   useEffect(() => { load(); }, [id]);
+  
+  // Auto-refresh when screen comes into focus
+  useFocusEffect(
+    React.useCallback(() => {
+      load({ silent: true });
+    }, [id])
+  );
   const onDelete = () => confirmDialog({ title: 'Delete ticket type?', message: 'Are you sure you want to delete this ticket type?', onConfirm: async () => { try { await ticketTypeApi.remove(id); Alert.alert('Success', 'Ticket type deleted'); navigation.goBack(); } catch (e) { Alert.alert('Error', getErrorMessage(e)); } } });
   if (loading) return <LoadingSpinner />;
   const percent = item ? Math.min(100, Math.round((Number(item.availableQuantity || 0) / Math.max(Number(item.totalQuantity || 1), 1)) * 100)) : 0;

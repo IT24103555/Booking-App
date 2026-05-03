@@ -1,4 +1,5 @@
 import React, { useContext, useEffect, useMemo, useState } from 'react';
+import { useFocusEffect } from '@react-navigation/native';
 import {
   View,
   Text,
@@ -92,7 +93,18 @@ export default function EventListScreen({ navigation }) {
     }
   };
 
+  // Initial load on mount or when user role changes
   useEffect(() => { load(); }, [isStaff]);
+
+  // Auto-refresh when screen comes into focus (user navigates back after create/update/delete)
+  useFocusEffect(
+    React.useCallback(() => {
+      // Silently reload data without showing loading spinner if data already exists
+      if (items.length > 0) {
+        load(true); // true = use refreshing state (pull-to-refresh spinner)
+      }
+    }, [])
+  );
 
   const filtered = useMemo(() => {
     let result = items || [];

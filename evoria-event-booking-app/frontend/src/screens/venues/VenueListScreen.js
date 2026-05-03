@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { FlatList, Image, TouchableOpacity, View, Text, TextInput, StyleSheet } from 'react-native';
+import { useFocusEffect } from '@react-navigation/native';
+import { FlatList, Image, TouchableOpacity, View, Text, TextInput, StyleSheet, RefreshControl } from 'react-native';
 import { venueApi } from '../../api/venueApi';
 import { getErrorMessage } from '../../api/apiClient';
 import AppButton from '../../components/AppButton';
@@ -28,25 +29,36 @@ function StatusPill({ status }) {
 export default function VenueListScreen({ navigation }) {
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState('');
   const [search, setSearch] = useState('');
 
-  const load = async () => {
+  const load = async (isRefresh = false) => {
     try {
       setError('');
-      setLoading(true);
+      isRefresh ? setRefreshing(true) : setLoading(true);
       const res = await venueApi.getAll();
       setItems(res.data || []);
     } catch (e) {
       setError(getErrorMessage(e));
     } finally {
       setLoading(false);
+      setRefreshing(false);
     }
   };
 
   useEffect(() => {
     load();
   }, []);
+
+  // Auto-refresh when screen comes into focus
+  useFocusEffect(
+    React.useCallback(() => {
+      if (items.length > 0) {
+        load(true); // Silently refresh
+      }
+    }, [])
+  );
 
   const filteredItems = useMemo(() => {
     const value = search.trim().toLowerCase();
@@ -97,6 +109,7 @@ export default function VenueListScreen({ navigation }) {
           keyExtractor={(item) => item._id}
           contentContainerStyle={styles.listContent}
           showsVerticalScrollIndicator={false}
+          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => load(true)} tintColor="#5E60CE" />}
           renderItem={({ item }) => {
             const uri = imageUrl(item.image);
             return (
