@@ -30,7 +30,7 @@ export default function AddTicketTypeScreen({ navigation }) {
   useEffect(() => {
     const load = async () => {
       try {
-        const res = await eventApi.getAll();
+          const res = await eventApi.getAllAdmin();
         setEvents(res.data || []);
       } catch (e) { setEvents([]); }
     };

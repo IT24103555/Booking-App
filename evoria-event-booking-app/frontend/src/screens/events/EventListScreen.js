@@ -81,7 +81,8 @@ export default function EventListScreen({ navigation }) {
     try {
       setError('');
       isRefresh ? setRefreshing(true) : setLoading(true);
-      const res = await eventApi.getAll();
+      // Admins/Organizers see ALL events, customers see only Published
+      const res = isStaff ? await eventApi.getAllAdmin() : await eventApi.getAll();
       setItems(res.data || []);
     } catch (e) {
       setError(getErrorMessage(e));
@@ -91,7 +92,7 @@ export default function EventListScreen({ navigation }) {
     }
   };
 
-  useEffect(() => { load(); }, []);
+  useEffect(() => { load(); }, [isStaff]);
 
   const filtered = useMemo(() => {
     let result = items || [];
