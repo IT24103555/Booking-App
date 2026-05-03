@@ -12,6 +12,13 @@ import { convertTimeToMinutes, isRequired, validateEventSchedule } from '../../u
 
 const UI = { primary: '#EC168C', background: '#FFF7FC', surface: '#FFFFFF', text: '#111827', muted: '#7C7C8A', border: '#F0DDEB', softPink: '#FFE7F4' };
 const STATUSES = ['Draft', 'Published', 'Cancelled', 'Completed'];
+const CATEGORIES = [
+  { id: '', label: 'Unspecified' },
+  { id: 'music', label: 'Music' },
+  { id: 'education', label: 'Education' },
+  { id: 'tech', label: 'Tech' },
+  { id: 'sports', label: 'Sports' },
+];
 const formatTodayValue = () => {
   const now = new Date();
   const year = now.getFullYear();
@@ -45,6 +52,7 @@ export default function AddEventScreen({ navigation }) {
   const [venueId, setVenueId] = useState('');
   const [selectedVenue, setSelectedVenue] = useState(null);
   const [status, setStatus] = useState('Draft');
+  const [category, setCategory] = useState('');
   const [imageFile, setImageFile] = useState(null);
   const [imagePreview, setImagePreview] = useState('');
   const [error, setError] = useState('');
@@ -147,7 +155,7 @@ export default function AddEventScreen({ navigation }) {
     if (!STATUSES.includes(status)) return setError('Status must be Draft, Published, Cancelled, or Completed.');
     try {
       setSaving(true);
-      const payload = { title: title.trim(), description, eventDate, startTime, endTime, venueId, status };
+      const payload = { title: title.trim(), description, eventDate, startTime, endTime, venueId, status, category };
       if (imageFile) payload.imageFile = imageFile;
       await eventApi.create(payload);
       Alert.alert('Success', 'Event created');
@@ -284,6 +292,8 @@ export default function AddEventScreen({ navigation }) {
             />
             
             <Text style={styles.fieldLabel}>Status</Text><View style={styles.chipRow}>{STATUSES.map((s) => <Chip key={s} label={s} selected={status === s} onPress={() => setStatus(s)} />)}</View>
+            <Text style={[styles.fieldLabel, { marginTop: 6 }]}>Category</Text>
+            <View style={styles.chipRow}>{CATEGORIES.map((c) => <Chip key={c.id || 'unspecified'} label={c.label} selected={category === c.id} onPress={() => setCategory(c.id)} />)}</View>
             <AppButton title={saving ? 'Creating...' : 'Create Event'} onPress={onSave} disabled={saving} />
           </View>
         </ScrollView>
