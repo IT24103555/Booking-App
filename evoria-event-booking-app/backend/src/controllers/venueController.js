@@ -9,7 +9,11 @@ const createVenue = async (req, res, next) => {
     // If a file was uploaded, store its public path
     const body = { ...req.body };
     if (req.file) {
-      body.image = await resolveStoredImagePath(req.file);
+      try {
+        body.image = await resolveStoredImagePath(req.file);
+      } catch (uploadErr) {
+        return res.status(400).json({ success: false, message: `Image upload failed: ${uploadErr.message}` });
+      }
     } else if (body.image && typeof body.image !== 'string') {
       delete body.image;
     }
@@ -63,7 +67,11 @@ const updateVenue = async (req, res, next) => {
 
     const body = { ...req.body };
     if (req.file) {
-      body.image = await resolveStoredImagePath(req.file);
+      try {
+        body.image = await resolveStoredImagePath(req.file);
+      } catch (uploadErr) {
+        return res.status(400).json({ success: false, message: `Image upload failed: ${uploadErr.message}` });
+      }
     } else if (body.image && typeof body.image !== 'string') {
       delete body.image;
     }
