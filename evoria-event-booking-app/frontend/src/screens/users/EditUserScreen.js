@@ -1,19 +1,27 @@
-import React, { useEffect, useState } from 'react';
-import { Alert, KeyboardAvoidingView, Platform, ScrollView, TouchableOpacity, View, Text, StyleSheet } from 'react-native';
-import { userApi } from '../../api/userApi';
-import { getErrorMessage } from '../../api/apiClient';
-import AppInput from '../../components/AppInput';
+import React from 'react';
+import { SafeAreaView, ScrollView, StyleSheet, Text, View } from 'react-native';
 import AppButton from '../../components/AppButton';
-import ErrorMessage from '../../components/ErrorMessage';
-import LoadingSpinner from '../../components/LoadingSpinner';
-import { isEmail } from '../../utils/validators';
-const ROLE_OPTIONS = ['customer', 'organizer', 'admin']; const ACTIVE_OPTIONS = [{ label: 'Active', value: 'true' }, { label: 'Inactive', value: 'false' }];
-function OptionChip({ label, selected, onPress }) { return <TouchableOpacity activeOpacity={0.85} onPress={onPress} style={[styles.optionChip, selected && styles.optionChipSelected]}><Text style={[styles.optionText, selected && styles.optionTextSelected]}>{label}</Text></TouchableOpacity>; }
-export default function EditUserScreen({ route, navigation }) {
-  const { id } = route.params; const [loading, setLoading] = useState(true); const [saving, setSaving] = useState(false); const [error, setError] = useState(''); const [name, setName] = useState(''); const [email, setEmail] = useState(''); const [phone, setPhone] = useState(''); const [role, setRole] = useState('customer'); const [isActive, setIsActive] = useState('true');
-  useEffect(() => { const load = async () => { try { setError(''); setLoading(true); const res = await userApi.getById(id); const u = res.data; setName(u?.name || ''); setEmail(u?.email || ''); setPhone(u?.phone || ''); setRole(u?.role || 'customer'); setIsActive(String(u?.isActive ?? true)); } catch (e) { setError(getErrorMessage(e)); } finally { setLoading(false); } }; load(); }, [id]);
-  const onSave = async () => { setError(''); if (email && !isEmail(email)) return setError('Valid email is required'); if (!ROLE_OPTIONS.includes(role)) return setError('Role must be admin, organizer, or customer'); if (!['true', 'false'].includes(isActive)) return setError('isActive must be true or false'); try { setSaving(true); await userApi.updateById(id, { name: name.trim(), email: email.trim(), phone: phone.trim(), role, isActive: isActive === 'true' }); Alert.alert('Success', 'User updated'); navigation.goBack(); } catch (e) { setError(getErrorMessage(e)); } finally { setSaving(false); } };
-  if (loading) return <LoadingSpinner />;
-  return <KeyboardAvoidingView style={styles.keyboard} behavior={Platform.OS === 'ios' ? 'padding' : undefined}><ScrollView contentContainerStyle={styles.page} showsVerticalScrollIndicator={false}><View style={styles.heroCard}><View style={styles.avatar}><Text style={styles.avatarText}>{(name || email || 'U').charAt(0).toUpperCase()}</Text></View><View style={styles.heroCopy}><Text style={styles.kicker}>Administration</Text><Text style={styles.title}>Edit user</Text><Text style={styles.subtitle}>Update identity, role, and access status safely.</Text></View></View><View style={styles.card}><ErrorMessage message={error} /><Text style={styles.sectionTitle}>Basic information</Text><Text style={styles.sectionHint}>Keep user details accurate for notifications and access control.</Text><AppInput label="Name" value={name} onChangeText={setName} placeholder="User name" /><AppInput label="Email" value={email} onChangeText={setEmail} placeholder="User email" keyboardType="email-address" /><AppInput label="Phone" value={phone} onChangeText={setPhone} placeholder="Optional" keyboardType="phone-pad" /><View style={styles.optionSection}><Text style={styles.label}>Role</Text><View style={styles.optionRow}>{ROLE_OPTIONS.map((option) => <OptionChip key={option} label={option.charAt(0).toUpperCase() + option.slice(1)} selected={role === option} onPress={() => setRole(option)} />)}</View></View><View style={styles.optionSection}><Text style={styles.label}>Account status</Text><View style={styles.optionRow}>{ACTIVE_OPTIONS.map((option) => <OptionChip key={option.value} label={option.label} selected={isActive === option.value} onPress={() => setIsActive(option.value)} />)}</View></View><View style={styles.actions}><AppButton title={saving ? 'Saving...' : 'Save user'} onPress={onSave} disabled={saving} /></View></View></ScrollView></KeyboardAvoidingView>;
+
+export default function EditUserScreen({ navigation }) {
+  return (
+    <SafeAreaView style={styles.safeArea}>
+      <ScrollView contentContainerStyle={styles.page} showsVerticalScrollIndicator={false}>
+        <View style={styles.card}>
+          <Text style={styles.kicker}>Administration</Text>
+          <Text style={styles.title}>User profile editing is restricted</Text>
+          <Text style={styles.subtitle}>Admins cannot edit user profile details. Users must update their own profile.</Text>
+          <AppButton title="Go Back" onPress={() => navigation.goBack()} />
+        </View>
+      </ScrollView>
+    </SafeAreaView>
+  );
 }
-const styles = StyleSheet.create({ keyboard: { flex: 1, backgroundColor: '#FFF7FB' }, page: { flexGrow: 1, padding: 20, backgroundColor: '#FFF7FB', paddingBottom: 34 }, heroCard: { backgroundColor: '#6C5CE7', borderRadius: 32, padding: 22, marginBottom: 18, flexDirection: 'row', alignItems: 'center', shadowColor: '#6C5CE7', shadowOffset: { width: 0, height: 14 }, shadowOpacity: 0.22, shadowRadius: 22, elevation: 8 }, avatar: { width: 62, height: 62, borderRadius: 22, backgroundColor: 'rgba(255,255,255,0.22)', alignItems: 'center', justifyContent: 'center', marginRight: 14 }, avatarText: { color: '#FFFFFF', fontSize: 24, fontWeight: '900' }, heroCopy: { flex: 1 }, kicker: { color: '#EDE9FE', fontSize: 12, fontWeight: '900', letterSpacing: 1.2, textTransform: 'uppercase' }, title: { color: '#FFFFFF', fontSize: 27, fontWeight: '900', marginTop: 6 }, subtitle: { color: '#F4F1FF', fontSize: 14, lineHeight: 21, marginTop: 8 }, card: { backgroundColor: '#FFFFFF', borderRadius: 28, padding: 20, borderWidth: 1, borderColor: '#FCE1EE', shadowColor: '#2D0A35', shadowOffset: { width: 0, height: 12 }, shadowOpacity: 0.08, shadowRadius: 22, elevation: 5 }, sectionTitle: { color: '#1F1D2B', fontSize: 20, fontWeight: '900' }, sectionHint: { color: '#7A7185', fontSize: 13, lineHeight: 19, marginTop: 4, marginBottom: 12 }, optionSection: { marginTop: 12 }, label: { color: '#1F1D2B', fontSize: 14, fontWeight: '800', marginBottom: 10 }, optionRow: { flexDirection: 'row', flexWrap: 'wrap' }, optionChip: { paddingHorizontal: 14, paddingVertical: 10, borderRadius: 16, backgroundColor: '#F5F3FF', borderWidth: 1, borderColor: '#DDD6FE', marginRight: 8, marginBottom: 8 }, optionChipSelected: { backgroundColor: '#6C5CE7', borderColor: '#6C5CE7' }, optionText: { color: '#5B21B6', fontSize: 13, fontWeight: '800' }, optionTextSelected: { color: '#FFFFFF' }, actions: { marginTop: 18 } });
+
+const styles = StyleSheet.create({
+  safeArea: { flex: 1, backgroundColor: '#FFF7FB' },
+  page: { flexGrow: 1, padding: 20, justifyContent: 'center' },
+  card: { backgroundColor: '#fff', borderRadius: 28, padding: 22, borderWidth: 1, borderColor: '#FCE1EE', shadowColor: '#2D0A35', shadowOffset: { width: 0, height: 12 }, shadowOpacity: 0.08, shadowRadius: 22, elevation: 5 },
+  kicker: { color: '#F80678', fontSize: 12, fontWeight: '900', letterSpacing: 1.2, textTransform: 'uppercase' },
+  title: { color: '#1F1D2B', fontSize: 24, fontWeight: '900', marginTop: 8 },
+  subtitle: { color: '#7A7185', fontSize: 14, lineHeight: 21, marginTop: 10, marginBottom: 18 },
+});
