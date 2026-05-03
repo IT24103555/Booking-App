@@ -11,6 +11,8 @@ const createEvent = async (req, res, next) => {
     const body = { ...req.body };
     if (req.file) {
       body.image = await resolveStoredImagePath(req.file);
+    } else if (body.image && typeof body.image !== 'string') {
+      delete body.image;
     }
 
     const { error, value } = createEventSchema.validate(body, { abortEarly: false });
@@ -95,6 +97,8 @@ const updateEvent = async (req, res, next) => {
     const body = { ...req.body };
     if (req.file) {
       body.image = await resolveStoredImagePath(req.file);
+    } else if (body.image && typeof body.image !== 'string') {
+      delete body.image;
     }
 
     const { error, value } = updateEventSchema.validate(body, { abortEarly: false });

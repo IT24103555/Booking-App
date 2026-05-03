@@ -10,6 +10,8 @@ const createVenue = async (req, res, next) => {
     const body = { ...req.body };
     if (req.file) {
       body.image = await resolveStoredImagePath(req.file);
+    } else if (body.image && typeof body.image !== 'string') {
+      delete body.image;
     }
 
     const { error, value } = createVenueSchema.validate(body, { abortEarly: false });
@@ -62,6 +64,8 @@ const updateVenue = async (req, res, next) => {
     const body = { ...req.body };
     if (req.file) {
       body.image = await resolveStoredImagePath(req.file);
+    } else if (body.image && typeof body.image !== 'string') {
+      delete body.image;
     }
 
     const { error, value } = updateVenueSchema.validate(body, { abortEarly: false });
