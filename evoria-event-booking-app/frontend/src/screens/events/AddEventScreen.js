@@ -158,8 +158,7 @@ export default function AddEventScreen({ navigation }) {
       const payload = { title: title.trim(), description, eventDate, startTime, endTime, venueId, status, category };
       if (imageFile) payload.imageFile = imageFile;
       await eventApi.create(payload);
-      Alert.alert('Success', 'Event created');
-      navigation.goBack();
+      Alert.alert('Success', 'Event created', [{ text: 'OK', onPress: () => navigation.navigate('EventList', { refreshAt: Date.now() }) }]);
     } catch (e) { setError(getErrorMessage(e)); }
     finally { setSaving(false); }
   };

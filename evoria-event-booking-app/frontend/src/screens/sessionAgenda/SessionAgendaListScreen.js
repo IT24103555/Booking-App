@@ -44,6 +44,7 @@ export default function SessionAgendaListScreen({ navigation }) {
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState('');
   const [search, setSearch] = useState('');
+  const hasLoadedRef = React.useRef(false);
 
   const load = async (isRefresh = false) => {
     try {
@@ -56,6 +57,7 @@ export default function SessionAgendaListScreen({ navigation }) {
     } finally {
       setLoading(false);
       setRefreshing(false);
+      hasLoadedRef.current = true;
     }
   };
 
@@ -64,7 +66,7 @@ export default function SessionAgendaListScreen({ navigation }) {
   // Auto-refresh when screen comes into focus
   useFocusEffect(
     React.useCallback(() => {
-      if (items.length > 0) {
+      if (hasLoadedRef.current) {
         load(true); // Silently refresh
       }
     }, [])

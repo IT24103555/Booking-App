@@ -263,8 +263,10 @@ export default function CreateBookingScreen({ route, navigation }) {
     try {
       setSaving(true);
       const res = await bookingApi.create({ eventId: eventId.trim(), ticketTypeId: ticketTypeId.trim(), quantity: Number(quantity), paymentMethod, ...(paymentDetails ? { paymentDetails } : {}) });
-      Alert.alert('Success', 'Booking created and payment processed');
-      navigation.replace('BookingDetails', { id: res.data._id });
+      Alert.alert('Success', 'Booking created and payment processed', [{
+        text: 'OK',
+        onPress: () => navigation.navigate('MainTabs', { screen: 'MyBookings', params: { refreshAt: Date.now() } }),
+      }]);
     } catch (e) {
       setError(getErrorMessage(e));
     } finally {

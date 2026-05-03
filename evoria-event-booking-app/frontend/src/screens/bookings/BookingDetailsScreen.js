@@ -62,6 +62,19 @@ export default function BookingDetailsScreen({ route, navigation }) {
     }, [id])
   );
 
+  const goToBookingListWithRefresh = () => {
+    const refreshAt = Date.now();
+    if (isStaff) {
+      navigation.navigate('BookingList', { refreshAt });
+      return;
+    }
+
+    navigation.navigate('MainTabs', {
+      screen: 'MyBookings',
+      params: { refreshAt },
+    });
+  };
+
   const onConfirm = () => {
     confirmDialog({
       title: 'Confirm booking?',
@@ -69,8 +82,7 @@ export default function BookingDetailsScreen({ route, navigation }) {
       onConfirm: async () => {
         try {
           await bookingApi.confirm(id);
-          Alert.alert('Success', 'Booking confirmed');
-          await load({ silent: true }); // Silent reload - don't show full-screen spinner
+          Alert.alert('Success', 'Booking confirmed', [{ text: 'OK', onPress: goToBookingListWithRefresh }]);
         } catch (e) {
           Alert.alert('Error', getErrorMessage(e));
         }
@@ -85,8 +97,7 @@ export default function BookingDetailsScreen({ route, navigation }) {
       onConfirm: async () => {
         try {
           await bookingApi.cancel(id);
-          Alert.alert('Success', 'Booking cancelled');
-          await load({ silent: true }); // Silent reload - don't show full-screen spinner
+          Alert.alert('Success', 'Booking cancelled', [{ text: 'OK', onPress: goToBookingListWithRefresh }]);
         } catch (e) {
           Alert.alert('Error', getErrorMessage(e));
         }

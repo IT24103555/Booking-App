@@ -22,6 +22,7 @@ export default function TicketTypeListScreen({ navigation }) {
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState('');
   const [search, setSearch] = useState('');
+  const hasLoadedRef = React.useRef(false);
 
   // Enhanced load function with refresh state support
   const load = async (isRefresh = false) => {
@@ -35,6 +36,7 @@ export default function TicketTypeListScreen({ navigation }) {
     } finally {
       setLoading(false);
       setRefreshing(false);
+      hasLoadedRef.current = true;
     }
   };
 
@@ -44,7 +46,7 @@ export default function TicketTypeListScreen({ navigation }) {
   // Auto-refresh when screen comes into focus
   useFocusEffect(
     React.useCallback(() => {
-      if (items.length > 0) {
+      if (hasLoadedRef.current) {
         load(true); // Silently refresh
       }
     }, [])
