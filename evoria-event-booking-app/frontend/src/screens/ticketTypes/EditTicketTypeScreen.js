@@ -31,7 +31,7 @@ export default function EditTicketTypeScreen({ route, navigation }) {
     const load = async () => {
       try {
         setError(''); setLoading(true);
-        const [ticketRes, eventRes] = await Promise.all([ticketTypeApi.getById(id), eventApi.getAll()]);
+        const [ticketRes, eventRes] = await Promise.all([ticketTypeApi.getById(id), eventApi.getAllAdmin()]);
         const t = ticketRes.data;
         setEvents(eventRes.data || []);
         setEventId(t?.eventId?._id || t?.eventId || '');

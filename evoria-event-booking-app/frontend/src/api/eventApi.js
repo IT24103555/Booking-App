@@ -5,6 +5,10 @@ export const eventApi = {
     const res = await apiClient.get('/events');
     return res.data;
   },
+  getAllAdmin: async () => {
+    const res = await apiClient.get('/events/admin/all');
+    return res.data;
+  },
   getById: async (id) => {
     const res = await apiClient.get(`/events/${id}`);
     return res.data;
