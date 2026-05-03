@@ -55,8 +55,15 @@ const uploadImageToCloudinary = (file) => {
         resource_type: 'image',
       },
       (error, result) => {
-        if (error) return reject(error);
-        return resolve(result?.secure_url || null);
+        if (error) {
+          console.error('Cloudinary upload error:', error);
+          return reject(new Error(`Cloudinary upload failed: ${error.message}`));
+        }
+        const url = result?.secure_url;
+        if (!url) {
+          return reject(new Error('Cloudinary returned no URL'));
+        }
+        return resolve(url);
       }
     );
 
