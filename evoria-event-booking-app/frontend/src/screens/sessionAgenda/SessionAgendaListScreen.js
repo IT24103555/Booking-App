@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
+import { useFocusEffect } from '@react-navigation/native';
 import { FlatList, RefreshControl, TouchableOpacity, View, Text, TextInput, StyleSheet } from 'react-native';
 import { sessionAgendaApi } from '../../api/sessionAgendaApi';
 import { getErrorMessage } from '../../api/apiClient';
@@ -59,6 +60,15 @@ export default function SessionAgendaListScreen({ navigation }) {
   };
 
   useEffect(() => { load(); }, []);
+
+  // Auto-refresh when screen comes into focus
+  useFocusEffect(
+    React.useCallback(() => {
+      if (items.length > 0) {
+        load(true); // Silently refresh
+      }
+    }, [])
+  );
 
   const filteredItems = useMemo(() => {
     const value = search.trim().toLowerCase();

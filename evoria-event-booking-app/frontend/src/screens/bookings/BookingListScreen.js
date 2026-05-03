@@ -1,4 +1,5 @@
 import React, { useContext, useEffect, useMemo, useState } from 'react';
+import { useFocusEffect } from '@react-navigation/native';
 import { ScrollView, TouchableOpacity, View, Text, StyleSheet, RefreshControl, Image, SafeAreaView } from 'react-native';
 import { bookingApi } from '../../api/bookingApi';
 import { getErrorMessage } from '../../api/apiClient';
@@ -77,6 +78,15 @@ export default function BookingListScreen({ navigation }) {
       setRefreshing(false);
     }
   };
+
+  // Auto-refresh when screen comes into focus
+  useFocusEffect(
+    React.useCallback(() => {
+      if (items.length > 0) {
+        load(true); // Silently refresh with pull-to-refresh spinner
+      }
+    }, [])
+  );
 
   useEffect(() => {
     if (authLoading) return;

@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { useFocusEffect } from '@react-navigation/native';
 import { Alert, ScrollView, View, Text, StyleSheet } from 'react-native';
 import { sessionAgendaApi } from '../../api/sessionAgendaApi';
 import { getErrorMessage } from '../../api/apiClient';
@@ -34,10 +35,10 @@ export default function SessionAgendaDetailsScreen({ route, navigation }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
-  const load = async () => {
+  const load = async ({ silent = false } = {}) => {
     try {
       setError('');
-      setLoading(true);
+      if (!silent) setLoading(true);
       const res = await sessionAgendaApi.getById(id);
       setItem(res.data);
     } catch (e) {
@@ -49,6 +50,13 @@ export default function SessionAgendaDetailsScreen({ route, navigation }) {
   };
 
   useEffect(() => { load(); }, [id]);
+
+  // Auto-refresh when screen comes into focus
+  useFocusEffect(
+    React.useCallback(() => {
+      load({ silent: true });
+    }, [id])
+  );
 
   const onDelete = () => {
     confirmDialog({

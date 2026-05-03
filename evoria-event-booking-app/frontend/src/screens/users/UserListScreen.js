@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { FlatList, TouchableOpacity, View, Text, TextInput, StyleSheet } from 'react-native';
+import { useFocusEffect } from '@react-navigation/native';
+import { FlatList, TouchableOpacity, View, Text, TextInput, StyleSheet, RefreshControl } from 'react-native';
 import { userApi } from '../../api/userApi';
 import { getErrorMessage } from '../../api/apiClient';
 import LoadingSpinner from '../../components/LoadingSpinner';
@@ -10,9 +11,36 @@ function StatusPill({ active }) { return <View style={[styles.statusPill, active
 function getInitials(name, email) { const source = name || email || 'U'; return source.split(' ').filter(Boolean).slice(0, 2).map((part) => part.charAt(0).toUpperCase()).join(''); }
 
 export default function UserListScreen({ navigation }) {
-  const [items, setItems] = useState([]); const [loading, setLoading] = useState(true); const [error, setError] = useState(''); const [search, setSearch] = useState('');
-  const load = async () => { try { setError(''); setLoading(true); const res = await userApi.getAll(); setItems(res.data || []); } catch (e) { setError(getErrorMessage(e)); } finally { setLoading(false); } };
+  const [items, setItems] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [error, setError] = useState('');
+  const [search, setSearch] = useState('');
+
+  const load = async (isRefresh = false) => {
+    try {
+      setError('');
+      isRefresh ? setRefreshing(true) : setLoading(true);
+      const res = await userApi.getAll();
+      setItems(res.data || []);
+    } catch (e) {
+      setError(getErrorMessage(e));
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  };
+
   useEffect(() => { load(); }, []);
+
+  // Auto-refresh when screen comes into focus
+  useFocusEffect(
+    React.useCallback(() => {
+      if (items.length > 0) {
+        load(true); // Silently refresh
+      }
+    }, [])
+  );
   const filteredItems = useMemo(() => { const value = search.trim().toLowerCase(); if (!value) return items; return items.filter((item) => `${item.name || ''} ${item.email || ''} ${item.role || ''} ${String(item.isActive)}`.toLowerCase().includes(value)); }, [items, search]);
   const counts = useMemo(() => items.reduce((acc, item) => ({ total: acc.total + 1, active: acc.active + (item.isActive ? 1 : 0), admins: acc.admins + (item.role === 'admin' ? 1 : 0) }), { total: 0, active: 0, admins: 0 }), [items]);
   if (loading) return <LoadingSpinner />;
@@ -21,7 +49,7 @@ export default function UserListScreen({ navigation }) {
       <View style={styles.heroCard}><Text style={styles.kicker}>Administration</Text><Text style={styles.pageTitle}>Users</Text><Text style={styles.pageSubtitle}>Review profiles, roles, and account status from a focused admin view.</Text><View style={styles.statsRow}><View style={styles.statCard}><Text style={styles.statValue}>{counts.total}</Text><Text style={styles.statLabel}>Users</Text></View><View style={styles.statCard}><Text style={styles.statValue}>{counts.active}</Text><Text style={styles.statLabel}>Active</Text></View><View style={styles.statCard}><Text style={styles.statValue}>{counts.admins}</Text><Text style={styles.statLabel}>Admins</Text></View></View></View>
       <TextInput value={search} onChangeText={setSearch} placeholder="Search by name, email, role, or status" placeholderTextColor="#9A8EA4" style={styles.searchInput} />
       <ErrorMessage message={error} />
-      {filteredItems.length === 0 ? <EmptyState title={items.length === 0 ? 'No users found' : 'No matching users'} actionTitle="Reload" onAction={load} /> : <FlatList data={filteredItems} keyExtractor={(item) => item._id} contentContainerStyle={styles.listContent} showsVerticalScrollIndicator={false} renderItem={({ item }) => <TouchableOpacity activeOpacity={0.86} onPress={() => navigation.navigate('UserDetails', { id: item._id })} style={styles.card}><View style={styles.avatar}><Text style={styles.avatarText}>{getInitials(item.name, item.email)}</Text></View><View style={styles.userCopy}><Text style={styles.title}>{item.name || 'Unnamed user'}</Text><Text style={styles.subtitle}>{item.email}</Text><Text style={styles.meta}>Role: {(item.role || 'customer').toUpperCase()}</Text></View><StatusPill active={Boolean(item.isActive)} /></TouchableOpacity>} />}
+      {filteredItems.length === 0 ? <EmptyState title={items.length === 0 ? 'No users found' : 'No matching users'} actionTitle="Reload" onAction={load} /> : <FlatList data={filteredItems} keyExtractor={(item) => item._id} contentContainerStyle={styles.listContent} showsVerticalScrollIndicator={false} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => load(true)} tintColor="#6C5CE7" />} renderItem={({ item }) => <TouchableOpacity activeOpacity={0.86} onPress={() => navigation.navigate('UserDetails', { id: item._id })} style={styles.card}><View style={styles.avatar}><Text style={styles.avatarText}>{getInitials(item.name, item.email)}</Text></View><View style={styles.userCopy}><Text style={styles.title}>{item.name || 'Unnamed user'}</Text><Text style={styles.subtitle}>{item.email}</Text><Text style={styles.meta}>Role: {(item.role || 'customer').toUpperCase()}</Text></View><StatusPill active={Boolean(item.isActive)} /></TouchableOpacity>} />}
     </View>
   );
 }
