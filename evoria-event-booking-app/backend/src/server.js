@@ -44,6 +44,11 @@ const corsAllowList = corsOriginRaw
   .map((s) => s.trim())
   .filter(Boolean);
 
+const alwaysAllowedOrigins = [
+  'https://booking-app-eta-rose.vercel.app',
+  'https://booking-app-git-thisuka-thisukasenan-9428s-projects.vercel.app',
+];
+
 const isDev = process.env.NODE_ENV !== 'production';
 const isDevFriendlyOrigin = (origin) => {
   if (!origin) return false;
@@ -60,6 +65,7 @@ const corsOptions = {
     if (!origin) return callback(null, true);
     if (corsAllowList.includes('*')) return callback(null, true);
     if (corsAllowList.includes(origin)) return callback(null, true);
+    if (alwaysAllowedOrigins.includes(origin)) return callback(null, true);
     if (isDev && isDevFriendlyOrigin(origin)) return callback(null, true);
     return callback(new Error(`Not allowed by CORS: ${origin}`));
   },
