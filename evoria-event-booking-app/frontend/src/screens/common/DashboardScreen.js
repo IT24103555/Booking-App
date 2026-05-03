@@ -1,6 +1,7 @@
 import React, { useContext } from 'react';
 import { Alert, View, Text, StyleSheet, ScrollView, TouchableOpacity, SafeAreaView } from 'react-native';
 import AppButton from '../../components/AppButton';
+import NotificationBellButton from '../../components/NotificationBellButton';
 import { AuthContext } from '../../context/AuthContext';
 
 const UI = { primary: '#EC168C', purple: '#7C3AED', background: '#FFF7FC', surface: '#FFFFFF', text: '#111827', muted: '#7C7C8A', border: '#F0DDEB', softPink: '#FFE7F4' };
@@ -44,7 +45,10 @@ export default function DashboardScreen({ navigation }) {
         <View style={styles.headerRow}>
           <TouchableOpacity style={styles.backButton} onPress={() => navigation.goBack()}><Text style={styles.backText}>‹</Text></TouchableOpacity>
           <Text style={styles.headerTitle}>Admin Dashboard</Text>
-          <TouchableOpacity style={styles.menuButton} onPress={onMenuPress}><Text style={styles.menuText}>☰</Text></TouchableOpacity>
+          <View style={styles.headerActions}>
+            <NotificationBellButton size={40} />
+            <TouchableOpacity style={styles.menuButton} onPress={onMenuPress}><Text style={styles.menuText}>☰</Text></TouchableOpacity>
+          </View>
         </View>
 
         <View style={styles.heroCard}>
@@ -79,6 +83,7 @@ const styles = StyleSheet.create({
   safeArea: { flex: 1, backgroundColor: UI.background },
   page: { padding: 18, paddingBottom: 36 },
   headerRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 },
+  headerActions: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   backButton: { width: 40, height: 40, borderRadius: 14, backgroundColor: '#fff', alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: UI.border },
   backText: { color: UI.text, fontSize: 28, lineHeight: 28, fontWeight: '900' },
   menuButton: { width: 40, height: 40, borderRadius: 14, backgroundColor: '#fff', alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: UI.border },

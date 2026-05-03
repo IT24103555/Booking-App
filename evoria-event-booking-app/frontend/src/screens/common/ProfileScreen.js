@@ -66,7 +66,7 @@ export default function ProfileScreen({ navigation }) {
             <MenuRow icon="👤" title="Personal Information" />
             <MenuRow icon="🎟️" title="My Bookings" onPress={() => navigation?.navigate?.('BookingList')} />
             <MenuRow icon="💳" title="Payment Methods" />
-            <MenuRow icon="🔔" title="Notifications" />
+            <MenuRow icon="🔔" title="Notifications" onPress={() => navigation?.navigate?.('Notifications')} />
             <MenuRow icon="💬" title="Help & Support" onPress={() => navigation?.navigate?.('Chatbot')} />
             <MenuRow icon="⚙️" title="Settings" />
           </View>

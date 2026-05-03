@@ -3,6 +3,7 @@ const Event = require('../models/Event');
 const TicketType = require('../models/TicketType');
 const validateObjectId = require('../utils/validateObjectId');
 const { createBookingSchema, updateBookingSchema } = require('../validations/bookingValidation');
+const { createNotification } = require('../services/notificationService');
 
 const generatePaymentReference = () => `PAY-${Date.now().toString(36).toUpperCase()}-${Math.random().toString(36).slice(2, 8).toUpperCase()}`;
 
@@ -129,6 +130,16 @@ const createBooking = async (req, res, next) => {
       .populate('eventId')
       .populate('ticketTypeId');
 
+    createNotification(
+      req.user._id,
+      'Booking Created',
+      'Your booking has been created successfully.',
+      'booking',
+      'medium',
+      'Booking',
+      booking._id
+    ).catch((notifyErr) => console.warn('[createBooking] notification failed:', notifyErr.message));
+
     return res.status(201).json({ success: true, message: 'Booking created', data: populated });
   } catch (err) {
     next(err);
@@ -208,6 +219,8 @@ const updateBooking = async (req, res, next) => {
       return res.status(404).json({ success: false, message: 'Booking not found' });
     }
 
+    const previousStatus = booking.status;
+
     // Inventory correctness: do not allow changing a cancelled booking back to active
     // without re-reserving tickets (simpler + safer to disallow).
     if (booking.status === 'Cancelled') {
@@ -251,6 +264,30 @@ const updateBooking = async (req, res, next) => {
       .populate('eventId')
       .populate('ticketTypeId');
 
+    if (value.status === 'Confirmed' && previousStatus !== 'Confirmed') {
+      createNotification(
+        booking.userId,
+        'Booking Confirmed',
+        'Your booking has been confirmed.',
+        'booking',
+        'medium',
+        'Booking',
+        booking._id
+      ).catch((notifyErr) => console.warn('[updateBooking] confirm notification failed:', notifyErr.message));
+    }
+
+    if (value.status === 'Cancelled' && previousStatus !== 'Cancelled') {
+      createNotification(
+        booking.userId,
+        'Booking Cancelled',
+        'Your booking has been cancelled and ticket availability was restored.',
+        'booking',
+        'high',
+        'Booking',
+        booking._id
+      ).catch((notifyErr) => console.warn('[updateBooking] cancel notification failed:', notifyErr.message));
+    }
+
     return res.status(200).json({ success: true, message: 'Booking updated', data: populated });
   } catch (err) {
     next(err);
@@ -286,6 +323,16 @@ const cancelBooking = async (req, res, next) => {
     // Restore tickets
     await increaseAvailability(booking.ticketTypeId, booking.quantity);
 
+    createNotification(
+      booking.userId,
+      'Booking Cancelled',
+      'Your booking has been cancelled and ticket availability was restored.',
+      'booking',
+      'high',
+      'Booking',
+      booking._id
+    ).catch((notifyErr) => console.warn('[cancelBooking] notification failed:', notifyErr.message));
+
     const populated = await Booking.findById(booking._id)
       .populate('eventId')
       .populate('ticketTypeId');
@@ -319,6 +366,16 @@ const confirmBooking = async (req, res, next) => {
 
     booking.status = 'Confirmed';
     await booking.save();
+
+    createNotification(
+      booking.userId,
+      'Booking Confirmed',
+      'Your booking has been confirmed.',
+      'booking',
+      'medium',
+      'Booking',
+      booking._id
+    ).catch((notifyErr) => console.warn('[confirmBooking] notification failed:', notifyErr.message));
 
     const populated = await Booking.findById(booking._id)
       .populate('userId', 'name email role')

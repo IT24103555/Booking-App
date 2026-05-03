@@ -2,6 +2,7 @@ const TicketType = require('../models/TicketType');
 const Event = require('../models/Event');
 const validateObjectId = require('../utils/validateObjectId');
 const { createTicketTypeSchema, updateTicketTypeSchema } = require('../validations/ticketTypeValidation');
+const { notifyUsersByEvent } = require('../services/notificationService');
 
 const syncTicketTypeWithEvent = async (ticketTypeId, oldEventId, newEventId) => {
   if (oldEventId && oldEventId.toString() !== newEventId.toString()) {
@@ -116,6 +117,15 @@ const updateTicketType = async (req, res, next) => {
       return res.status(404).json({ success: false, message: 'Ticket type not found' });
     }
 
+    notifyUsersByEvent(updated.eventId?._id || updated.eventId, {
+      title: 'Ticket Availability Updated',
+      message: 'Ticket availability or pricing has been updated.',
+      type: 'ticket',
+      priority: 'medium',
+      relatedEntityType: 'TicketType',
+      relatedEntityId: updated._id,
+    }).catch((notifyErr) => console.warn('[updateTicketType] notification failed:', notifyErr.message));
+
     if (value.eventId !== undefined && current.eventId?.toString() !== nextEventId.toString()) {
       await syncTicketTypeWithEvent(updated._id, current.eventId, nextEventId);
     } else if (!current.eventId) {
@@ -135,12 +145,21 @@ const deleteTicketType = async (req, res, next) => {
     if (!validateObjectId(id)) {
       return res.status(400).json({ success: false, message: 'Invalid ticket type id' });
     }
+    const current = await TicketType.findById(id);
     const deleted = await TicketType.findByIdAndDelete(id);
     if (!deleted) {
       return res.status(404).json({ success: false, message: 'Ticket type not found' });
     }
     if (deleted.eventId) {
       await Event.findByIdAndUpdate(deleted.eventId, { $pull: { ticketTypeIds: deleted._id } });
+      notifyUsersByEvent(deleted.eventId, {
+        title: 'Ticket Availability Updated',
+        message: 'Ticket availability has changed for one of the event ticket types.',
+        type: 'ticket',
+        priority: 'medium',
+        relatedEntityType: 'TicketType',
+        relatedEntityId: current?._id || deleted._id,
+      }).catch((notifyErr) => console.warn('[deleteTicketType] notification failed:', notifyErr.message));
     }
     return res.status(200).json({ success: true, message: 'Ticket type deleted' });
   } catch (err) {

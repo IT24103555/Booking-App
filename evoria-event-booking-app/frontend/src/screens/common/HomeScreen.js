@@ -12,6 +12,7 @@ import {
   ActivityIndicator,
 } from 'react-native';
 import { eventApi } from '../../api/eventApi';
+import NotificationBellButton from '../../components/NotificationBellButton';
 import { API_BASE_URL } from '../../config/apiConfig';
 
 const UPLOADS_BASE = API_BASE_URL && API_BASE_URL.endsWith('/api') ? API_BASE_URL.slice(0, -4) : API_BASE_URL || 'http://localhost:5000';
@@ -159,13 +160,7 @@ export default function HomeScreen({ navigation }) {
               <Text style={styles.locationLabel}>Location</Text>
               <Text style={styles.locationText}>📍 Kathmandu, Nepal</Text>
             </View>
-            <TouchableOpacity
-              style={styles.notificationButton}
-              onPress={() => Alert.alert('Notifications', 'You do not have any in-app notifications yet.')}
-            >
-              <Text style={styles.notificationIcon}>🔔</Text>
-              <View style={styles.notificationDot} />
-            </TouchableOpacity>
+            <NotificationBellButton size={44} />
           </View>
 
           <View style={styles.searchRow}>

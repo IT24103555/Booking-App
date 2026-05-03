@@ -31,12 +31,15 @@ import AddSessionAgendaScreen from '../screens/sessionAgenda/AddSessionAgendaScr
 import EditSessionAgendaScreen from '../screens/sessionAgenda/EditSessionAgendaScreen';
 import SessionAgendaDetailsScreen from '../screens/sessionAgenda/SessionAgendaDetailsScreen';
 
+import NotificationScreen from '../screens/notifications/NotificationScreen';
+
 const Stack = createNativeStackNavigator();
 
 export default function AdminNavigator() {
   return (
     <Stack.Navigator>
       <Stack.Screen name="Dashboard" component={DashboardScreen} />
+      <Stack.Screen name="Notifications" component={NotificationScreen} options={{ title: 'Notifications' }} />
 
       <Stack.Screen name="UserList" component={UserListScreen} options={{ title: 'Users' }} />
       <Stack.Screen name="UserDetails" component={UserDetailsScreen} options={{ title: 'User Details' }} />
