@@ -23,7 +23,7 @@ import AppButton from '../../components/AppButton';
 import ErrorMessage from '../../components/ErrorMessage';
 import LoadingSpinner from '../../components/LoadingSpinner';
 import { colors } from '../../constants/colors';
-import { isRequired, isTimeHHmm } from '../../utils/validators';
+import { isRequired, isTimeHHmm, isDateYYYYMMDD, isTodayOrFutureDate } from '../../utils/validators';
 
 const STATUS_OPTIONS = ['Draft', 'Published', 'Cancelled', 'Completed'];
 
@@ -146,8 +146,8 @@ export default function EditEventScreen({ route, navigation }) {
     setError('');
     if (!isRequired(title)) return setError('Title is required.');
     if (!isRequired(eventDate)) return setError('Event date is required (YYYY-MM-DD).');
-    const d = new Date(eventDate);
-    if (Number.isNaN(d.getTime())) return setError('Event date must be valid (YYYY-MM-DD).');
+    if (!isDateYYYYMMDD(eventDate)) return setError('Event date must be a valid date in YYYY-MM-DD format.');
+    if (!isTodayOrFutureDate(eventDate)) return setError('Event date cannot be in the past.');
     if (!isTimeHHmm(startTime) || !isTimeHHmm(endTime)) return setError('Time must be HH:mm.');
     if (endTime <= startTime) return setError('End time must be after start time.');
     if (!venueId) return setError('Please select a venue.');
@@ -158,7 +158,7 @@ export default function EditEventScreen({ route, navigation }) {
       const payload = {
         title: title.trim(),
         description,
-        eventDate,
+        eventDate: eventDate.trim(),
         startTime,
         endTime,
         venueId,

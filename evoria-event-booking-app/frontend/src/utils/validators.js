@@ -28,6 +28,32 @@ export const isTimeHHmm = (value) => {
   return /^([01]\d|2[0-3]):([0-5]\d)$/.test(t);
 };
 
+export const isDateYYYYMMDD = (value) => {
+  const dateValue = String(value || '').trim();
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(dateValue)) return false;
+
+  const [year, month, day] = dateValue.split('-').map(Number);
+  const date = new Date(year, month - 1, day);
+  return (
+    !Number.isNaN(date.getTime()) &&
+    date.getFullYear() === year &&
+    date.getMonth() === month - 1 &&
+    date.getDate() === day
+  );
+};
+
+export const isTodayOrFutureDate = (value) => {
+  if (!isDateYYYYMMDD(value)) return false;
+
+  const [year, month, day] = String(value).trim().split('-').map(Number);
+  const eventDate = new Date(year, month - 1, day);
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  eventDate.setHours(0, 0, 0, 0);
+
+  return eventDate >= today;
+};
+
 export const normalizeDigits = (value) => String(value || '').replace(/\D/g, '');
 
 export const isCardHolderName = (value) => {
