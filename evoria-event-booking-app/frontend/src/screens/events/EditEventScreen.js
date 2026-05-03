@@ -23,9 +23,19 @@ import AppButton from '../../components/AppButton';
 import ErrorMessage from '../../components/ErrorMessage';
 import LoadingSpinner from '../../components/LoadingSpinner';
 import { colors } from '../../constants/colors';
+import { DatePickerModal, PickerField, TimePickerModal } from '../../components/SchedulePickers';
 import { isRequired, validateEventSchedule } from '../../utils/validators';
 
 const STATUS_OPTIONS = ['Draft', 'Published', 'Cancelled', 'Completed'];
+const EDIT_THEME = {
+  primary: '#F80678',
+  background: '#FFF7FB',
+  surface: '#FFFFFF',
+  text: '#1F1D2B',
+  muted: '#7A7185',
+  border: '#E6D4E0',
+  soft: '#FFF2F8',
+};
 
 function OptionChip({ label, selected, onPress }) {
   return (
@@ -53,6 +63,9 @@ export default function EditEventScreen({ route, navigation }) {
   const [venues, setVenues] = useState([]);
   const [loadingVenues, setLoadingVenues] = useState(true);
   const [showVenuePicker, setShowVenuePicker] = useState(false);
+  const [showDatePicker, setShowDatePicker] = useState(false);
+  const [showStartTimePicker, setShowStartTimePicker] = useState(false);
+  const [showEndTimePicker, setShowEndTimePicker] = useState(false);
 
   useEffect(() => {
     const loadVenues = async () => {
@@ -204,7 +217,16 @@ export default function EditEventScreen({ route, navigation }) {
           <AppInput label="Event title" value={title} onChangeText={setTitle} placeholder="Event title" />
           <AppInput label="Description" value={description} onChangeText={setDescription} placeholder="Optional event description" />
           <View style={styles.twoColumn}>
-            <View style={styles.column}><AppInput label="Event date" value={eventDate} onChangeText={setEventDate} placeholder="YYYY-MM-DD" /></View>
+            <View style={styles.column}>
+              <PickerField
+                label="Event date"
+                value={eventDate}
+                placeholder="Select a date"
+                onPress={() => setShowDatePicker(true)}
+                helperText="Choose a date from the calendar."
+                theme={EDIT_THEME}
+              />
+            </View>
             <View style={styles.column}>
               <Text style={styles.label}>Venue</Text>
               <TouchableOpacity style={styles.venueButton} onPress={() => setShowVenuePicker(true)}>
@@ -214,7 +236,28 @@ export default function EditEventScreen({ route, navigation }) {
             </View>
           </View>
           <Text style={styles.helperText}>Use a real calendar date in YYYY-MM-DD format.</Text>
-          <Text style={styles.helperText}>Use 24-hour time format, for example 09:00 or 18:30.</Text>
+          <View style={styles.timeRow}>
+            <View style={styles.column}>
+              <PickerField
+                label="Start time"
+                value={startTime}
+                placeholder="Select time"
+                onPress={() => setShowStartTimePicker(true)}
+                helperText="Choose a 24-hour time."
+                theme={EDIT_THEME}
+              />
+            </View>
+            <View style={styles.column}>
+              <PickerField
+                label="End time"
+                value={endTime}
+                placeholder="Select time"
+                onPress={() => setShowEndTimePicker(true)}
+                helperText="Choose a 24-hour time."
+                theme={EDIT_THEME}
+              />
+            </View>
+          </View>
 
           <Modal visible={showVenuePicker} transparent animationType="slide">
             <SafeAreaView style={styles.modal}>
@@ -244,11 +287,42 @@ export default function EditEventScreen({ route, navigation }) {
               />
             </SafeAreaView>
           </Modal>
-          
-          <View style={styles.twoColumn}>
-            <View style={styles.column}><AppInput label="Start time" value={startTime} onChangeText={setStartTime} placeholder="10:00" /></View>
-            <View style={styles.column}><AppInput label="End time" value={endTime} onChangeText={setEndTime} placeholder="12:00" /></View>
-          </View>
+
+          <DatePickerModal
+            visible={showDatePicker}
+            value={eventDate}
+            onClose={() => setShowDatePicker(false)}
+            onSelect={(selectedDate) => {
+              setEventDate(selectedDate);
+              setShowDatePicker(false);
+            }}
+            theme={EDIT_THEME}
+            title="Select Event Date"
+          />
+
+          <TimePickerModal
+            visible={showStartTimePicker}
+            value={startTime}
+            onClose={() => setShowStartTimePicker(false)}
+            onSelect={(selectedTime) => {
+              setStartTime(selectedTime);
+              setShowStartTimePicker(false);
+            }}
+            theme={EDIT_THEME}
+            title="Select Start Time"
+          />
+
+          <TimePickerModal
+            visible={showEndTimePicker}
+            value={endTime}
+            onClose={() => setShowEndTimePicker(false)}
+            onSelect={(selectedTime) => {
+              setEndTime(selectedTime);
+              setShowEndTimePicker(false);
+            }}
+            theme={EDIT_THEME}
+            title="Select End Time"
+          />
 
           <View style={styles.optionSection}>
             <Text style={styles.label}>Status</Text>
@@ -322,6 +396,7 @@ const styles = StyleSheet.create({
   venueButton: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 12, paddingVertical: 10, borderRadius: 10, borderWidth: 1, borderColor: '#E6D4E0', backgroundColor: '#FFFFFF', marginTop: 4 },
   venueButtonText: { flex: 1, color: '#1F1D2B', fontWeight: '700', fontSize: 14 },
   venueButtonArrow: { color: '#F80678', fontSize: 16, fontWeight: '900' },
+  timeRow: { flexDirection: 'row', marginHorizontal: -5 },
   modal: { flex: 1, backgroundColor: '#FFF7FB' },
   modalHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: '#E6D4E0', backgroundColor: '#FFFFFF' },
   modalClose: { fontSize: 22, color: '#1F1D2B', fontWeight: '900', width: 30, textAlign: 'center' },
