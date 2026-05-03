@@ -22,6 +22,9 @@ export const eventApi = {
       formData.append('venueId', payload.venueId);
       formData.append('status', payload.status);
       const res = await apiClient.post('/events', formData, {
+        headers: {
+          'Content-Type': 'multipart/form-data',
+        },
       });
       return res.data;
     }
@@ -42,6 +45,9 @@ export const eventApi = {
       formData.append('venueId', payload.venueId);
       formData.append('status', payload.status);
       const res = await apiClient.put(`/events/${id}`, formData, {
+        headers: {
+          'Content-Type': 'multipart/form-data',
+        },
       });
       return res.data;
     }
