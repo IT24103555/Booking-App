@@ -24,7 +24,7 @@ import ErrorMessage from '../../components/ErrorMessage';
 import LoadingSpinner from '../../components/LoadingSpinner';
 import { colors } from '../../constants/colors';
 import { DatePickerModal, PickerField, TimePickerModal } from '../../components/SchedulePickers';
-import { isRequired, validateEventSchedule } from '../../utils/validators';
+import { convertTimeToMinutes, isRequired, validateEventSchedule } from '../../utils/validators';
 
 const STATUS_OPTIONS = ['Draft', 'Published', 'Cancelled', 'Completed'];
 const EDIT_THEME = {
@@ -35,6 +35,29 @@ const EDIT_THEME = {
   muted: '#7A7185',
   border: '#E6D4E0',
   soft: '#FFF2F8',
+};
+
+const formatTodayValue = () => {
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = String(now.getMonth() + 1).padStart(2, '0');
+  const day = String(now.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+};
+
+const getCurrentTimeMinutes = () => {
+  const now = new Date();
+  return now.getHours() * 60 + now.getMinutes();
+};
+
+const getMinStartMinutes = (selectedDate) => (selectedDate === formatTodayValue() ? getCurrentTimeMinutes() : null);
+
+const getMinEndMinutes = (selectedDate, currentStartTime) => {
+  if (!currentStartTime) return selectedDate === formatTodayValue() ? getCurrentTimeMinutes() : null;
+  const afterStart = convertTimeToMinutes(currentStartTime) + 15;
+  const todayMinimum = selectedDate === formatTodayValue() ? getCurrentTimeMinutes() : null;
+  if (todayMinimum === null) return afterStart;
+  return Math.max(todayMinimum, afterStart);
 };
 
 function OptionChip({ label, selected, onPress }) {
@@ -304,7 +327,11 @@ export default function EditEventScreen({ route, navigation }) {
             visible={showStartTimePicker}
             value={startTime}
             onClose={() => setShowStartTimePicker(false)}
+            minMinutes={getMinStartMinutes(eventDate)}
+            disabledMessage="Start time cannot be in the past for today's event."
+            onInvalidSelect={(message) => setError(message)}
             onSelect={(selectedTime) => {
+              setError('');
               setStartTime(selectedTime);
               setShowStartTimePicker(false);
             }}
@@ -316,7 +343,11 @@ export default function EditEventScreen({ route, navigation }) {
             visible={showEndTimePicker}
             value={endTime}
             onClose={() => setShowEndTimePicker(false)}
+            minMinutes={getMinEndMinutes(eventDate, startTime)}
+            disabledMessage="End time must be after start time."
+            onInvalidSelect={(message) => setError(message)}
             onSelect={(selectedTime) => {
+              setError('');
               setEndTime(selectedTime);
               setShowEndTimePicker(false);
             }}
