@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { Alert, View, Text, StyleSheet, ScrollView, KeyboardAvoidingView, Platform, TouchableOpacity, Image, SafeAreaView } from 'react-native';
+import * as ImagePicker from 'expo-image-picker';
 import { eventApi } from '../../api/eventApi';
 import { getErrorMessage } from '../../api/apiClient';
 import AppInput from '../../components/AppInput';
@@ -25,19 +26,55 @@ export default function AddEventScreen({ navigation }) {
   const [saving, setSaving] = useState(false);
 
   const onPickImage = async () => {
-    if (typeof document !== 'undefined') {
-      const input = document.createElement('input');
-      input.type = 'file'; input.accept = 'image/*';
-      input.onchange = (e) => {
-        const file = e.target.files[0];
-        if (file) {
-          setImageFile(file);
-          const reader = new FileReader();
-          reader.onload = (evt) => setImagePreview(evt.target.result);
-          reader.readAsDataURL(file);
+    // Use Expo ImagePicker for native devices, fallback to web input
+    try {
+      if (Platform.OS !== 'web') {
+        const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+        if (status !== 'granted') {
+          Alert.alert('Permission required', 'Permission to access photos is required to upload images.');
+          return;
         }
-      };
-      input.click();
+      }
+
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsEditing: true,
+        quality: 0.8,
+      });
+
+      // Expo returns either { cancelled } (older) or { canceled }/assets (newer)
+      if (result.cancelled || result.canceled) return;
+
+      const asset = result.assets ? result.assets[0] : result;
+      if (!asset) return;
+
+      const uri = asset.uri || asset.uri;
+      setImagePreview(uri);
+
+      const fileName = uri.split('/').pop();
+      const match = /\.([0-9a-z]+)(?:[?;]|$)/i.exec(fileName);
+      const ext = match ? match[1] : 'jpg';
+      const type = asset.type || `image/${ext}`;
+
+      setImageFile({ uri, name: fileName, type });
+    } catch (err) {
+      // Fallback to web file input for web clients
+      if (typeof document !== 'undefined') {
+        const input = document.createElement('input');
+        input.type = 'file'; input.accept = 'image/*';
+        input.onchange = (e) => {
+          const file = e.target.files[0];
+          if (file) {
+            setImageFile(file);
+            const reader = new FileReader();
+            reader.onload = (evt) => setImagePreview(evt.target.result);
+            reader.readAsDataURL(file);
+          }
+        };
+        input.click();
+      } else {
+        Alert.alert('Image error', 'Could not open image picker.');
+      }
     }
   };
 

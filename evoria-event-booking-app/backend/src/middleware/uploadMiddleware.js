@@ -1,15 +1,28 @@
 const path = require('path');
 const fs = require('fs');
 const multer = require('multer');
+const { v2: cloudinary } = require('cloudinary');
 
-// Ensure uploads folder exists
+const hasCloudinaryConfig =
+  process.env.CLOUDINARY_CLOUD_NAME &&
+  process.env.CLOUDINARY_API_KEY &&
+  process.env.CLOUDINARY_API_SECRET;
+
+if (hasCloudinaryConfig) {
+  cloudinary.config({
+    cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+    api_key: process.env.CLOUDINARY_API_KEY,
+    api_secret: process.env.CLOUDINARY_API_SECRET,
+  });
+}
+
+// Ensure uploads folder exists for local development fallback
 const uploadsDir = path.join(__dirname, '..', '..', 'uploads');
 if (!fs.existsSync(uploadsDir)) {
   fs.mkdirSync(uploadsDir, { recursive: true });
 }
 
-// Store files on disk (simple demo approach)
-const storage = multer.diskStorage({
+const diskStorage = multer.diskStorage({
   destination: function (req, file, cb) {
     cb(null, uploadsDir);
   },
@@ -29,6 +42,34 @@ const fileFilter = (req, file, cb) => {
   cb(null, true);
 };
 
+const storage = hasCloudinaryConfig ? multer.memoryStorage() : diskStorage;
 const upload = multer({ storage, fileFilter });
 
-module.exports = { upload };
+const uploadImageToCloudinary = (file) => {
+  if (!hasCloudinaryConfig || !file) return Promise.resolve(null);
+
+  return new Promise((resolve, reject) => {
+    const uploadStream = cloudinary.uploader.upload_stream(
+      {
+        folder: 'evoria',
+        resource_type: 'image',
+      },
+      (error, result) => {
+        if (error) return reject(error);
+        return resolve(result?.secure_url || null);
+      }
+    );
+
+    uploadStream.end(file.buffer);
+  });
+};
+
+const resolveStoredImagePath = async (file) => {
+  if (!file) return null;
+  if (hasCloudinaryConfig) {
+    return uploadImageToCloudinary(file);
+  }
+  return `/uploads/${file.filename}`;
+};
+
+module.exports = { upload, resolveStoredImagePath, hasCloudinaryConfig };
