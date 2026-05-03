@@ -369,7 +369,7 @@ export default function CreateBookingScreen({ route, navigation }) {
                       <Text style={styles.cardSummaryValue}>{cardBrand}</Text>
                       <Text style={styles.cardSummaryMasked}>{maskCardNumber(normalizedCardNumber)}</Text>
                     </View>
-                    <Text style={styles.cardSummaryHint}>We only send masked card details to the backend.</Text>
+                    {/* Hint removed: do not display masked-card backend message in UI */}
                   </View>
 
                   <PaymentField
