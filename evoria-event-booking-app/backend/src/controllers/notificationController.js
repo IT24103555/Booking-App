@@ -65,20 +65,30 @@ const markAllNotificationsAsRead = async (req, res, next) => {
 const deleteNotification = async (req, res, next) => {
   try {
     const { id } = req.params;
+    // Debugging: log incoming delete requests to help diagnose client-side failures
+    // (remove or reduce verbosity after debugging)
+    // eslint-disable-next-line no-console
+    console.log(`[notifications] DELETE called - id=${id} user=${req.user && req.user._id}`);
     if (!validateObjectId(id)) {
       return res.status(400).json({ success: false, message: 'Invalid notification id' });
     }
 
     const notification = await Notification.findById(id);
+    // eslint-disable-next-line no-console
+    console.log(`[notifications] found notification=${notification ? notification._id : 'null'} userId=${notification ? notification.userId : 'n/a'}`);
     if (!notification) {
       return res.status(404).json({ success: false, message: 'Notification not found' });
     }
 
     if (notification.userId.toString() !== req.user._id.toString()) {
+      // eslint-disable-next-line no-console
+      console.log(`[notifications] forbidden delete attempt - notification.userId=${notification.userId} req.user=${req.user._id}`);
       return res.status(403).json({ success: false, message: 'Forbidden' });
     }
 
     await Notification.findByIdAndDelete(id);
+    // eslint-disable-next-line no-console
+    console.log(`[notifications] deleted ${id} by user ${req.user._id}`);
     return res.status(200).json({ success: true, message: 'Notification deleted' });
   } catch (err) {
     next(err);
