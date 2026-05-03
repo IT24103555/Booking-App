@@ -72,7 +72,7 @@ function EventPosterCard({ event, onPress }) {
         <Text style={styles.posterTitle} numberOfLines={2}>{event.title || 'Untitled Event'}</Text>
         <Text style={styles.posterMeta} numberOfLines={1}>{String(event.eventDate || '').slice(0, 10) || 'Date TBA'} · {event.startTime || 'Time TBA'}</Text>
         <Text style={styles.posterVenue} numberOfLines={1}>{event.venueId?.name || 'Venue TBA'}</Text>
-        <Text style={styles.priceText}>NPR {event.ticketTypeIds?.[0]?.price || event.price || '1500'}</Text>
+        <Text style={styles.priceText}>LKR {event.ticketTypeIds?.[0]?.price || event.price || '1500'}</Text>
       </View>
     </TouchableOpacity>
   );

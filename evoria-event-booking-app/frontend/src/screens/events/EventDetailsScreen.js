@@ -128,7 +128,7 @@ export default function EventDetailsScreen({ route, navigation }) {
         {item && !isStaff ? (
           <View style={styles.bottomBar}>
             <View>
-              <Text style={styles.priceLabel}>NPR {item.ticketTypeIds?.[0]?.price || item.price || '1500'}</Text>
+              <Text style={styles.priceLabel}>LKR {item.ticketTypeIds?.[0]?.price || item.price || '1500'}</Text>
               <Text style={styles.priceSub}>Onwards</Text>
             </View>
             <TouchableOpacity style={styles.bookButton} onPress={() => navigation.navigate('CreateBooking', { eventId: item._id })}>

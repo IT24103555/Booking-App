@@ -39,7 +39,7 @@ function BookingCard({ item, onPress }) {
         <Text style={styles.cardMeta} numberOfLines={1}>{venueName}</Text>
         <View style={styles.cardFooter}>
           <Text style={styles.ticketText}>{item.quantity || 0} Ticket{Number(item.quantity) === 1 ? '' : 's'}</Text>
-          <Text style={styles.amountText}>NPR {Number(item.totalAmount || 0).toFixed(0)}</Text>
+          <Text style={styles.amountText}>LKR {Number(item.totalAmount || 0).toFixed(0)}</Text>
         </View>
       </View>
     </TouchableOpacity>
