@@ -48,8 +48,14 @@ export default function AddEventScreen({ navigation }) {
       const asset = result.assets ? result.assets[0] : result;
       if (!asset) return;
 
-      const uri = asset.uri || asset.uri;
+      const uri = asset.uri;
       setImagePreview(uri);
+
+      // On web, send the real File object so multipart upload works in browser.
+      if (Platform.OS === 'web' && asset.file) {
+        setImageFile(asset.file);
+        return;
+      }
 
       const fileName = uri.split('/').pop();
       const match = /\.([0-9a-z]+)(?:[?;]|$)/i.exec(fileName);

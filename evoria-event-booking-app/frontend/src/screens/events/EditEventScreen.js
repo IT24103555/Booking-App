@@ -87,8 +87,15 @@ export default function EditEventScreen({ route, navigation }) {
       if (result.cancelled || result.canceled) return;
       const asset = result.assets ? result.assets[0] : result;
       if (!asset) return;
-      const uri = asset.uri || asset.uri;
+      const uri = asset.uri;
       setImagePreview(uri);
+
+      // On web, use real File object for multipart upload.
+      if (Platform.OS === 'web' && asset.file) {
+        setImageFile(asset.file);
+        return;
+      }
+
       const fileName = uri.split('/').pop();
       const match = /\.([0-9a-z]+)(?:[?;]|$)/i.exec(fileName);
       const ext = match ? match[1] : 'jpg';
