@@ -63,11 +63,9 @@ export default function ProfileScreen({ navigation }) {
           </View>
 
           <View style={styles.menuCard}>
-            <MenuRow icon="👤" title="Personal Information" onPress={() => {}} />
             <MenuRow icon="🎟️" title="My Bookings" onPress={() => navigation?.navigate?.('MyBookings')} />
             <MenuRow icon="🔔" title="Notifications" onPress={() => navigation?.navigate?.('Notifications')} />
             <MenuRow icon="💬" title="Help & Support" onPress={() => navigation?.navigate?.('Chatbot')} />
-            <MenuRow icon="⚙️" title="Settings" />
           </View>
 
           <View style={styles.editCard}>
