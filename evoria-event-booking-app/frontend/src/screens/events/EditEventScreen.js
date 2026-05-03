@@ -9,10 +9,14 @@ import {
   Text,
   StyleSheet,
   Image,
+  SafeAreaView,
+  FlatList,
+  Modal,
 } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import { API_BASE_URL } from '../../config/apiConfig';
 import { eventApi } from '../../api/eventApi';
+import { venueApi } from '../../api/venueApi';
 import { getErrorMessage } from '../../api/apiClient';
 import AppInput from '../../components/AppInput';
 import AppButton from '../../components/AppButton';
@@ -42,9 +46,27 @@ export default function EditEventScreen({ route, navigation }) {
   const [startTime, setStartTime] = useState('10:00');
   const [endTime, setEndTime] = useState('12:00');
   const [venueId, setVenueId] = useState('');
+  const [selectedVenue, setSelectedVenue] = useState(null);
   const [status, setStatus] = useState('Draft');
   const [imageFile, setImageFile] = useState(null);
   const [imagePreview, setImagePreview] = useState('');
+  const [venues, setVenues] = useState([]);
+  const [loadingVenues, setLoadingVenues] = useState(true);
+  const [showVenuePicker, setShowVenuePicker] = useState(false);
+
+  useEffect(() => {
+    const loadVenues = async () => {
+      try {
+        const data = await venueApi.getAll();
+        setVenues(data.data || []);
+      } catch (err) {
+        console.error('Failed to load venues:', err);
+      } finally {
+        setLoadingVenues(false);
+      }
+    };
+    loadVenues();
+  }, []);
 
   useEffect(() => {
     const load = async () => {
@@ -58,7 +80,13 @@ export default function EditEventScreen({ route, navigation }) {
         setEventDate(e?.eventDate ? String(e.eventDate).slice(0, 10) : '');
         setStartTime(e?.startTime || '10:00');
         setEndTime(e?.endTime || '12:00');
-        setVenueId(e?.venue?._id || e?.venueId?._id || e?.venue || e?.venueId || '');
+        const vid = e?.venue?._id || e?.venueId?._id || e?.venue || e?.venueId || '';
+        setVenueId(vid);
+        // Try to find and set the selected venue
+        if (venues.length > 0 && vid) {
+          const venue = venues.find(v => v._id === vid);
+          if (venue) setSelectedVenue(venue);
+        }
         setStatus(e?.status || 'Draft');
         // Prepare image preview if event has image path
         if (e?.image) {
@@ -72,7 +100,7 @@ export default function EditEventScreen({ route, navigation }) {
       }
     };
     load();
-  }, [id]);
+  }, [id, venues]);
 
   const onPickImage = async () => {
     if (Platform.OS === 'web' && typeof document !== 'undefined') {
@@ -122,7 +150,7 @@ export default function EditEventScreen({ route, navigation }) {
     if (Number.isNaN(d.getTime())) return setError('Event date must be valid (YYYY-MM-DD).');
     if (!isTimeHHmm(startTime) || !isTimeHHmm(endTime)) return setError('Time must be HH:mm.');
     if (endTime <= startTime) return setError('End time must be after start time.');
-    if (!isRequired(venueId)) return setError('Venue ID is required.');
+    if (!venueId) return setError('Please select a venue.');
     if (!STATUS_OPTIONS.includes(status)) return setError('Status must be Draft, Published, Cancelled, or Completed.');
 
     try {
@@ -133,7 +161,7 @@ export default function EditEventScreen({ route, navigation }) {
         eventDate,
         startTime,
         endTime,
-        venueId: venueId.trim(),
+        venueId,
         status,
       };
       if (imageFile) payload.imageFile = imageFile;
@@ -145,6 +173,12 @@ export default function EditEventScreen({ route, navigation }) {
     } finally {
       setSaving(false);
     }
+  };
+
+  const handleSelectVenue = (venue) => {
+    setVenueId(venue._id);
+    setSelectedVenue(venue);
+    setShowVenuePicker(false);
   };
 
   if (loading) return <LoadingSpinner />;
@@ -174,8 +208,44 @@ export default function EditEventScreen({ route, navigation }) {
           <AppInput label="Description" value={description} onChangeText={setDescription} placeholder="Optional event description" />
           <View style={styles.twoColumn}>
             <View style={styles.column}><AppInput label="Event date" value={eventDate} onChangeText={setEventDate} placeholder="YYYY-MM-DD" /></View>
-            <View style={styles.column}><AppInput label="Venue ID" value={venueId} onChangeText={setVenueId} placeholder="MongoDB ObjectId" /></View>
+            <View style={styles.column}>
+              <Text style={styles.label}>Venue</Text>
+              <TouchableOpacity style={styles.venueButton} onPress={() => setShowVenuePicker(true)}>
+                <Text style={styles.venueButtonText}>{selectedVenue ? selectedVenue.name : loadingVenues ? 'Loading...' : 'Select venue'}</Text>
+                <Text style={styles.venueButtonArrow}>›</Text>
+              </TouchableOpacity>
+            </View>
           </View>
+
+          <Modal visible={showVenuePicker} transparent animationType="slide">
+            <SafeAreaView style={styles.modal}>
+              <View style={styles.modalHeader}>
+                <TouchableOpacity onPress={() => setShowVenuePicker(false)}>
+                  <Text style={styles.modalClose}>✕</Text>
+                </TouchableOpacity>
+                <Text style={styles.modalTitle}>Select Venue</Text>
+                <View style={styles.modalClose} />
+              </View>
+              <FlatList
+                data={venues}
+                keyExtractor={(item) => item._id}
+                renderItem={({ item }) => (
+                  <TouchableOpacity
+                    style={[styles.venueOption, venueId === item._id && styles.venueOptionSelected]}
+                    onPress={() => handleSelectVenue(item)}
+                  >
+                    <View>
+                      <Text style={styles.venueOptionName}>{item.name}</Text>
+                      <Text style={styles.venueOptionLocation}>{item.location}</Text>
+                      <Text style={styles.venueOptionCapacity}>Capacity: {item.capacity}</Text>
+                    </View>
+                    {venueId === item._id && <Text style={styles.checkmark}>✓</Text>}
+                  </TouchableOpacity>
+                )}
+              />
+            </SafeAreaView>
+          </Modal>
+          
           <View style={styles.twoColumn}>
             <View style={styles.column}><AppInput label="Start time" value={startTime} onChangeText={setStartTime} placeholder="10:00" /></View>
             <View style={styles.column}><AppInput label="End time" value={endTime} onChangeText={setEndTime} placeholder="12:00" /></View>
@@ -249,4 +319,17 @@ const styles = StyleSheet.create({
   previewImage: { width: '100%', height: '100%' },
   imageIcon: { fontSize: 32 },
   imageText: { color: '#F80678', fontWeight: '900', marginTop: 8 },
+  venueButton: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 12, paddingVertical: 10, borderRadius: 10, borderWidth: 1, borderColor: '#E6D4E0', backgroundColor: '#FFFFFF', marginTop: 4 },
+  venueButtonText: { flex: 1, color: '#1F1D2B', fontWeight: '700', fontSize: 14 },
+  venueButtonArrow: { color: '#F80678', fontSize: 16, fontWeight: '900' },
+  modal: { flex: 1, backgroundColor: '#FFF7FB' },
+  modalHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: '#E6D4E0', backgroundColor: '#FFFFFF' },
+  modalClose: { fontSize: 22, color: '#1F1D2B', fontWeight: '900', width: 30, textAlign: 'center' },
+  modalTitle: { fontSize: 16, fontWeight: '900', color: '#1F1D2B' },
+  venueOption: { paddingHorizontal: 16, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: '#E6D4E0', backgroundColor: '#FFFFFF', marginBottom: 8, marginHorizontal: 8, borderRadius: 12, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  venueOptionSelected: { backgroundColor: '#FFF2F8', borderWidth: 1.5, borderColor: '#F80678' },
+  venueOptionName: { fontSize: 15, fontWeight: '900', color: '#1F1D2B' },
+  venueOptionLocation: { fontSize: 12, color: '#7A7185', marginTop: 3 },
+  venueOptionCapacity: { fontSize: 11, color: '#7A7185', marginTop: 3 },
+  checkmark: { fontSize: 18, color: '#F80678', fontWeight: '900' },
 });

@@ -1,7 +1,8 @@
-import React, { useState } from 'react';
-import { Alert, View, Text, StyleSheet, ScrollView, KeyboardAvoidingView, Platform, TouchableOpacity, Image, SafeAreaView } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import { Alert, View, Text, StyleSheet, ScrollView, KeyboardAvoidingView, Platform, TouchableOpacity, Image, SafeAreaView, FlatList, Modal } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import { eventApi } from '../../api/eventApi';
+import { venueApi } from '../../api/venueApi';
 import { getErrorMessage } from '../../api/apiClient';
 import AppInput from '../../components/AppInput';
 import AppButton from '../../components/AppButton';
@@ -19,11 +20,29 @@ export default function AddEventScreen({ navigation }) {
   const [startTime, setStartTime] = useState('10:00');
   const [endTime, setEndTime] = useState('12:00');
   const [venueId, setVenueId] = useState('');
+  const [selectedVenue, setSelectedVenue] = useState(null);
   const [status, setStatus] = useState('Draft');
   const [imageFile, setImageFile] = useState(null);
   const [imagePreview, setImagePreview] = useState('');
   const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
+  const [venues, setVenues] = useState([]);
+  const [loadingVenues, setLoadingVenues] = useState(true);
+  const [showVenuePicker, setShowVenuePicker] = useState(false);
+
+  useEffect(() => {
+    const loadVenues = async () => {
+      try {
+        const data = await venueApi.getAll();
+        setVenues(data.data || []);
+      } catch (err) {
+        console.error('Failed to load venues:', err);
+      } finally {
+        setLoadingVenues(false);
+      }
+    };
+    loadVenues();
+  }, []);
 
   const onPickImage = async () => {
     // Use browser file input on web so FormData receives a real File.
@@ -101,17 +120,23 @@ export default function AddEventScreen({ navigation }) {
     if (Number.isNaN(d.getTime())) return setError('Event date must be valid (YYYY-MM-DD).');
     if (!isTimeHHmm(startTime) || !isTimeHHmm(endTime)) return setError('Time must be HH:mm.');
     if (endTime <= startTime) return setError('End time must be after start time.');
-    if (!isRequired(venueId)) return setError('Venue ID is required.');
+    if (!venueId) return setError('Please select a venue.');
     if (!STATUSES.includes(status)) return setError('Status must be Draft, Published, Cancelled, or Completed.');
     try {
       setSaving(true);
-      const payload = { title: title.trim(), description, eventDate, startTime, endTime, venueId: venueId.trim(), status };
+      const payload = { title: title.trim(), description, eventDate, startTime, endTime, venueId, status };
       if (imageFile) payload.imageFile = imageFile;
       await eventApi.create(payload);
       Alert.alert('Success', 'Event created');
       navigation.goBack();
     } catch (e) { setError(getErrorMessage(e)); }
     finally { setSaving(false); }
+  };
+
+  const handleSelectVenue = (venue) => {
+    setVenueId(venue._id);
+    setSelectedVenue(venue);
+    setShowVenuePicker(false);
   };
 
   return (
@@ -127,7 +152,42 @@ export default function AddEventScreen({ navigation }) {
             <AppInput label="Description" value={description} onChangeText={setDescription} placeholder="Describe event details" multiline />
             <AppInput label="Event Date" value={eventDate} onChangeText={setEventDate} placeholder="YYYY-MM-DD" />
             <View style={styles.rowFields}><View style={styles.flexField}><AppInput label="Start" value={startTime} onChangeText={setStartTime} placeholder="10:00" /></View><View style={styles.flexField}><AppInput label="End" value={endTime} onChangeText={setEndTime} placeholder="12:00" /></View></View>
-            <AppInput label="Venue ID" value={venueId} onChangeText={setVenueId} placeholder="MongoDB venue id" />
+            
+            <Text style={styles.fieldLabel}>Venue</Text>
+            <TouchableOpacity style={styles.venueButton} onPress={() => setShowVenuePicker(true)}>
+              <Text style={styles.venueButtonText}>{selectedVenue ? selectedVenue.name : loadingVenues ? 'Loading venues...' : 'Select a venue'}</Text>
+              <Text style={styles.venueButtonArrow}>›</Text>
+            </TouchableOpacity>
+            
+            <Modal visible={showVenuePicker} transparent animationType="slide">
+              <SafeAreaView style={styles.modal}>
+                <View style={styles.modalHeader}>
+                  <TouchableOpacity onPress={() => setShowVenuePicker(false)}>
+                    <Text style={styles.modalClose}>✕</Text>
+                  </TouchableOpacity>
+                  <Text style={styles.modalTitle}>Select Venue</Text>
+                  <View style={styles.modalClose} />
+                </View>
+                <FlatList
+                  data={venues}
+                  keyExtractor={(item) => item._id}
+                  renderItem={({ item }) => (
+                    <TouchableOpacity
+                      style={[styles.venueOption, venueId === item._id && styles.venueOptionSelected]}
+                      onPress={() => handleSelectVenue(item)}
+                    >
+                      <View>
+                        <Text style={styles.venueOptionName}>{item.name}</Text>
+                        <Text style={styles.venueOptionLocation}>{item.location}</Text>
+                        <Text style={styles.venueOptionCapacity}>Capacity: {item.capacity}</Text>
+                      </View>
+                      {venueId === item._id && <Text style={styles.checkmark}>✓</Text>}
+                    </TouchableOpacity>
+                  )}
+                />
+              </SafeAreaView>
+            </Modal>
+            
             <Text style={styles.fieldLabel}>Status</Text><View style={styles.chipRow}>{STATUSES.map((s) => <Chip key={s} label={s} selected={status === s} onPress={() => setStatus(s)} />)}</View>
             <AppButton title={saving ? 'Creating...' : 'Create Event'} onPress={onSave} disabled={saving} />
           </View>
@@ -144,4 +204,15 @@ const styles = StyleSheet.create({
   formCard: { backgroundColor: '#fff', borderRadius: 24, padding: 18, borderWidth: 1, borderColor: UI.border }, sectionTitle: { color: UI.text, fontSize: 18, fontWeight: '900', marginBottom: 12 },
   imagePicker: { height: 150, borderRadius: 22, backgroundColor: '#FFF3FA', borderWidth: 1.5, borderStyle: 'dashed', borderColor: UI.primary, alignItems: 'center', justifyContent: 'center', marginBottom: 14, overflow: 'hidden' }, previewImage: { width: '100%', height: '100%' }, imageIcon: { fontSize: 32 }, imageText: { color: UI.primary, fontWeight: '900', marginTop: 8 },
   rowFields: { flexDirection: 'row', gap: 10 }, flexField: { flex: 1 }, fieldLabel: { color: UI.text, fontWeight: '900', marginTop: 8, marginBottom: 10 }, chipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 18 }, chip: { paddingHorizontal: 13, paddingVertical: 9, borderRadius: 999, borderWidth: 1, borderColor: UI.border, backgroundColor: '#FFF8FC' }, chipActive: { backgroundColor: UI.primary, borderColor: UI.primary }, chipText: { color: UI.text, fontWeight: '800', fontSize: 12 }, chipTextActive: { color: '#fff' },
+  venueButton: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 14, paddingVertical: 12, borderRadius: 12, borderWidth: 1, borderColor: UI.border, backgroundColor: UI.surface, marginBottom: 18 }, venueButtonText: { flex: 1, color: UI.text, fontWeight: '700', fontSize: 15 }, venueButtonArrow: { color: UI.primary, fontSize: 18, fontWeight: '900' },
+  modal: { flex: 1, backgroundColor: UI.background },
+  modalHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: UI.border, backgroundColor: UI.surface },
+  modalClose: { fontSize: 24, color: UI.text, fontWeight: '900', width: 30, textAlign: 'center' },
+  modalTitle: { fontSize: 17, fontWeight: '900', color: UI.text },
+  venueOption: { paddingHorizontal: 16, paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: UI.border, backgroundColor: UI.surface, marginBottom: 8, marginHorizontal: 8, borderRadius: 12, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  venueOptionSelected: { backgroundColor: '#FFF3FA', borderWidth: 1.5, borderColor: UI.primary },
+  venueOptionName: { fontSize: 16, fontWeight: '900', color: UI.text },
+  venueOptionLocation: { fontSize: 13, color: UI.muted, marginTop: 4 },
+  venueOptionCapacity: { fontSize: 12, color: UI.muted, marginTop: 4 },
+  checkmark: { fontSize: 20, color: UI.primary, fontWeight: '900' },
 });
