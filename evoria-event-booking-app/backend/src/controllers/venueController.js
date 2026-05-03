@@ -10,8 +10,11 @@ const createVenue = async (req, res, next) => {
     const body = { ...req.body };
     if (req.file) {
       try {
-        body.image = await resolveStoredImagePath(req.file);
+        const imagePath = await resolveStoredImagePath(req.file);
+        console.log('[createVenue] Image upload result:', imagePath);
+        body.image = imagePath;
       } catch (uploadErr) {
+        console.error('[createVenue] Image upload error:', uploadErr);
         return res.status(400).json({ success: false, message: `Image upload failed: ${uploadErr.message}` });
       }
     } else if (body.image && typeof body.image !== 'string') {

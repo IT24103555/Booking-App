@@ -8,6 +8,13 @@ const hasCloudinaryConfig =
   process.env.CLOUDINARY_API_KEY &&
   process.env.CLOUDINARY_API_SECRET;
 
+console.log('=== UPLOAD MIDDLEWARE CONFIG ===');
+console.log('CLOUDINARY_CLOUD_NAME:', process.env.CLOUDINARY_CLOUD_NAME ? 'SET' : 'NOT SET');
+console.log('CLOUDINARY_API_KEY:', process.env.CLOUDINARY_API_KEY ? 'SET' : 'NOT SET');
+console.log('CLOUDINARY_API_SECRET:', process.env.CLOUDINARY_API_SECRET ? 'SET' : 'NOT SET');
+console.log('hasCloudinaryConfig:', hasCloudinaryConfig);
+console.log('================================');
+
 if (hasCloudinaryConfig) {
   cloudinary.config({
     cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
@@ -72,11 +79,26 @@ const uploadImageToCloudinary = (file) => {
 };
 
 const resolveStoredImagePath = async (file) => {
-  if (!file) return null;
+  if (!file) {
+    console.log('[resolveStoredImagePath] No file provided');
+    return null;
+  }
+  
+  console.log('[resolveStoredImagePath] file:', { 
+    originalname: file.originalname, 
+    filename: file.filename, 
+    buffer: file.buffer ? 'YES' : 'NO',
+    hasCloudinaryConfig 
+  });
+  
   if (hasCloudinaryConfig) {
+    console.log('[resolveStoredImagePath] Uploading to Cloudinary...');
     return uploadImageToCloudinary(file);
   }
-  return `/uploads/${file.filename}`;
+  
+  const path = `/uploads/${file.filename}`;
+  console.log('[resolveStoredImagePath] Using local disk:', path);
+  return path;
 };
 
 module.exports = { upload, resolveStoredImagePath, hasCloudinaryConfig };
