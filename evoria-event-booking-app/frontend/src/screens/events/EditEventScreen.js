@@ -8,7 +8,10 @@ import {
   View,
   Text,
   StyleSheet,
+  Image,
 } from 'react-native';
+import * as ImagePicker from 'expo-image-picker';
+import { API_BASE_URL } from '../../config/apiConfig';
 import { eventApi } from '../../api/eventApi';
 import { getErrorMessage } from '../../api/apiClient';
 import AppInput from '../../components/AppInput';
@@ -40,6 +43,8 @@ export default function EditEventScreen({ route, navigation }) {
   const [endTime, setEndTime] = useState('12:00');
   const [venueId, setVenueId] = useState('');
   const [status, setStatus] = useState('Draft');
+  const [imageFile, setImageFile] = useState(null);
+  const [imagePreview, setImagePreview] = useState('');
 
   useEffect(() => {
     const load = async () => {
@@ -55,6 +60,11 @@ export default function EditEventScreen({ route, navigation }) {
         setEndTime(e?.endTime || '12:00');
         setVenueId(e?.venue?._id || e?.venueId?._id || e?.venue || e?.venueId || '');
         setStatus(e?.status || 'Draft');
+        // Prepare image preview if event has image path
+        if (e?.image) {
+          const base = API_BASE_URL && API_BASE_URL.endsWith('/api') ? API_BASE_URL.slice(0, -4) : API_BASE_URL || 'http://localhost:5000';
+          setImagePreview(String(e.image).startsWith('http') ? e.image : `${base}${e.image}`);
+        }
       } catch (err) {
         setError(getErrorMessage(err));
       } finally {
@@ -63,6 +73,31 @@ export default function EditEventScreen({ route, navigation }) {
     };
     load();
   }, [id]);
+
+  const onPickImage = async () => {
+    try {
+      if (Platform.OS !== 'web') {
+        const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+        if (status !== 'granted') {
+          Alert.alert('Permission required', 'Permission to access photos is required to upload images.');
+          return;
+        }
+      }
+      const result = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ImagePicker.MediaTypeOptions.Images, allowsEditing: true, quality: 0.8 });
+      if (result.cancelled || result.canceled) return;
+      const asset = result.assets ? result.assets[0] : result;
+      if (!asset) return;
+      const uri = asset.uri || asset.uri;
+      setImagePreview(uri);
+      const fileName = uri.split('/').pop();
+      const match = /\.([0-9a-z]+)(?:[?;]|$)/i.exec(fileName);
+      const ext = match ? match[1] : 'jpg';
+      const type = asset.type || `image/${ext}`;
+      setImageFile({ uri, name: fileName, type });
+    } catch (err) {
+      Alert.alert('Image error', 'Could not open image picker.');
+    }
+  };
 
   const onSave = async () => {
     setError('');
@@ -77,7 +112,7 @@ export default function EditEventScreen({ route, navigation }) {
 
     try {
       setSaving(true);
-      await eventApi.update(id, {
+      const payload = {
         title: title.trim(),
         description,
         eventDate,
@@ -85,7 +120,9 @@ export default function EditEventScreen({ route, navigation }) {
         endTime,
         venueId: venueId.trim(),
         status,
-      });
+      };
+      if (imageFile) payload.imageFile = imageFile;
+      await eventApi.update(id, payload);
       Alert.alert('Success', 'Event updated');
       navigation.goBack();
     } catch (e) {
@@ -113,6 +150,10 @@ export default function EditEventScreen({ route, navigation }) {
           <Text style={styles.sectionTitle}>Event information</Text>
           <Text style={styles.sectionHint}>Changes will be shown to customers once the event is published.</Text>
           <ErrorMessage message={error} />
+
+          <TouchableOpacity style={styles.imagePicker} onPress={onPickImage}>
+            {imagePreview ? <Image source={{ uri: imagePreview }} style={styles.previewImage} /> : <><Text style={styles.imageIcon}>🖼️</Text><Text style={styles.imageText}>Upload Event Image</Text></>}
+          </TouchableOpacity>
 
           <AppInput label="Event title" value={title} onChangeText={setTitle} placeholder="Event title" />
           <AppInput label="Description" value={description} onChangeText={setDescription} placeholder="Optional event description" />
@@ -189,4 +230,8 @@ const styles = StyleSheet.create({
   optionText: { color: '#9A315F', fontSize: 13, fontWeight: '800' },
   optionTextSelected: { color: '#FFFFFF' },
   actions: { marginTop: 16 },
+  imagePicker: { height: 150, borderRadius: 22, backgroundColor: '#FFF3FA', borderWidth: 1.5, borderStyle: 'dashed', borderColor: '#F80678', alignItems: 'center', justifyContent: 'center', marginBottom: 14, overflow: 'hidden' },
+  previewImage: { width: '100%', height: '100%' },
+  imageIcon: { fontSize: 32 },
+  imageText: { color: '#F80678', fontWeight: '900', marginTop: 8 },
 });

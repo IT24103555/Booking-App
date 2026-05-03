@@ -3,13 +3,14 @@ const Venue = require('../models/Venue');
 const TicketType = require('../models/TicketType');
 const validateObjectId = require('../utils/validateObjectId');
 const { createEventSchema, updateEventSchema } = require('../validations/eventValidation');
+const { resolveStoredImagePath } = require('../middleware/uploadMiddleware');
 
 // POST /api/events
 const createEvent = async (req, res, next) => {
   try {
     const body = { ...req.body };
     if (req.file) {
-      body.image = `/uploads/${req.file.filename}`;
+      body.image = await resolveStoredImagePath(req.file);
     }
 
     const { error, value } = createEventSchema.validate(body, { abortEarly: false });
@@ -93,7 +94,7 @@ const updateEvent = async (req, res, next) => {
 
     const body = { ...req.body };
     if (req.file) {
-      body.image = `/uploads/${req.file.filename}`;
+      body.image = await resolveStoredImagePath(req.file);
     }
 
     const { error, value } = updateEventSchema.validate(body, { abortEarly: false });

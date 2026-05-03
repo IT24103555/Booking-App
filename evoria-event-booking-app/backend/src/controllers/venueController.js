@@ -1,6 +1,7 @@
 const Venue = require('../models/Venue');
 const validateObjectId = require('../utils/validateObjectId');
 const { createVenueSchema, updateVenueSchema } = require('../validations/venueValidation');
+const { resolveStoredImagePath } = require('../middleware/uploadMiddleware');
 
 // POST /api/venues
 const createVenue = async (req, res, next) => {
@@ -8,7 +9,7 @@ const createVenue = async (req, res, next) => {
     // If a file was uploaded, store its public path
     const body = { ...req.body };
     if (req.file) {
-      body.image = `/uploads/${req.file.filename}`;
+      body.image = await resolveStoredImagePath(req.file);
     }
 
     const { error, value } = createVenueSchema.validate(body, { abortEarly: false });
@@ -60,7 +61,7 @@ const updateVenue = async (req, res, next) => {
 
     const body = { ...req.body };
     if (req.file) {
-      body.image = `/uploads/${req.file.filename}`;
+      body.image = await resolveStoredImagePath(req.file);
     }
 
     const { error, value } = updateVenueSchema.validate(body, { abortEarly: false });
