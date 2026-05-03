@@ -31,7 +31,7 @@ function MainTabs() {
     <Tab.Navigator tabBar={(props) => <CustomTabBar {...props} />}>
       <Tab.Screen name="Home" component={HomeScreen} />
       <Tab.Screen name="MyBookings" component={BookingListScreen} options={{ title: 'Bookings' }} />
-      <Tab.Screen name="Profile" component={ProfileScreen} />
+      <Tab.Screen name="Settings" component={ProfileScreen} />
     </Tab.Navigator>
   );
 }
