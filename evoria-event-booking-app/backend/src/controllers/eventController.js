@@ -66,6 +66,21 @@ const createEvent = async (req, res, next) => {
 // GET /api/events
 const getAllEvents = async (req, res, next) => {
   try {
+    // Only return published events to customers
+    const items = await Event.find({ status: 'Published' })
+      .populate('venueId')
+      .populate('ticketTypeIds')
+      .sort({ createdAt: -1 });
+    return res.status(200).json({ success: true, message: 'Events fetched', data: items });
+  } catch (err) {
+    next(err);
+  }
+};
+
+// GET /api/events/admin/all - Admin/Organizer endpoint to see ALL events including drafts
+const getAllEventsAdmin = async (req, res, next) => {
+  try {
+    // Return ALL events (admin view)
     const items = await Event.find()
       .populate('venueId')
       .populate('ticketTypeIds')
@@ -177,6 +192,7 @@ const deleteEvent = async (req, res, next) => {
 module.exports = {
   createEvent,
   getAllEvents,
+  getAllEventsAdmin,
   getSingleEvent,
   updateEvent,
   deleteEvent,
