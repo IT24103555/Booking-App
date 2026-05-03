@@ -27,6 +27,13 @@ import { DatePickerModal, PickerField, TimePickerModal } from '../../components/
 import { convertTimeToMinutes, isRequired, validateEventSchedule } from '../../utils/validators';
 
 const STATUS_OPTIONS = ['Draft', 'Published', 'Cancelled', 'Completed'];
+const CATEGORIES = [
+  { id: '', label: 'Unspecified' },
+  { id: 'music', label: 'Music' },
+  { id: 'education', label: 'Education' },
+  { id: 'tech', label: 'Tech' },
+  { id: 'sports', label: 'Sports' },
+];
 const EDIT_THEME = {
   primary: '#F80678',
   background: '#FFF7FB',
@@ -81,6 +88,7 @@ export default function EditEventScreen({ route, navigation }) {
   const [venueId, setVenueId] = useState('');
   const [selectedVenue, setSelectedVenue] = useState(null);
   const [status, setStatus] = useState('Draft');
+  const [category, setCategory] = useState('');
   const [imageFile, setImageFile] = useState(null);
   const [imagePreview, setImagePreview] = useState('');
   const [venues, setVenues] = useState([]);
@@ -124,6 +132,7 @@ export default function EditEventScreen({ route, navigation }) {
           if (venue) setSelectedVenue(venue);
         }
         setStatus(e?.status || 'Draft');
+        setCategory(e?.category || '');
         // Prepare image preview if event has image path
         if (e?.image) {
           const base = API_BASE_URL && API_BASE_URL.endsWith('/api') ? API_BASE_URL.slice(0, -4) : API_BASE_URL || 'http://localhost:5000';
@@ -196,6 +205,7 @@ export default function EditEventScreen({ route, navigation }) {
         endTime,
         venueId,
         status,
+        category,
       };
       if (imageFile) payload.imageFile = imageFile;
       await eventApi.update(id, payload);
@@ -360,6 +370,15 @@ export default function EditEventScreen({ route, navigation }) {
             <View style={styles.optionRow}>
               {STATUS_OPTIONS.map((option) => (
                 <OptionChip key={option} label={option} selected={status === option} onPress={() => setStatus(option)} />
+              ))}
+            </View>
+          </View>
+
+          <View style={styles.optionSection}>
+            <Text style={styles.label}>Category</Text>
+            <View style={styles.optionRow}>
+              {CATEGORIES.map((c) => (
+                <OptionChip key={c.id || 'unspecified'} label={c.label} selected={category === c.id} onPress={() => setCategory(c.id)} />
               ))}
             </View>
           </View>

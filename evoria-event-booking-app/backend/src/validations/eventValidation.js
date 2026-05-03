@@ -11,7 +11,8 @@ const createEventSchema = Joi.object({
     'any.required': 'Description is required',
     'string.empty': 'Description is required',
   }),
-  category: Joi.string().allow('', null),
+  // Category should be one of the supported category ids used by the frontend
+  category: Joi.string().valid('', 'music', 'education', 'tech', 'sports').default(''),
   eventDate: Joi.date().required().messages({
     'any.required': 'Event date is required',
   }),
@@ -52,7 +53,7 @@ const createEventSchema = Joi.object({
 const updateEventSchema = Joi.object({
   title: Joi.string().trim(),
   description: Joi.string(),
-  category: Joi.string().allow('', null),
+  category: Joi.string().valid('', 'music', 'education', 'tech', 'sports').default(''),
   eventDate: Joi.date(),
   startTime: Joi.string().pattern(timeRegex),
   endTime: Joi.string().pattern(timeRegex),
