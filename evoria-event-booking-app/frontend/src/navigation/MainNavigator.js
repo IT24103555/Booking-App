@@ -10,6 +10,7 @@ import BookingDetailsScreen from '../screens/bookings/BookingDetailsScreen';
 import CreateBookingScreen from '../screens/bookings/CreateBookingScreen';
 import ProfileScreen from '../screens/common/ProfileScreen';
 import ChatbotScreen from '../screens/chat/ChatbotScreen';
+import NotificationScreen from '../screens/notifications/NotificationScreen';
 import FloatingChatButton from '../components/FloatingChatButton';
 
 const Tab = createBottomTabNavigator();
@@ -42,6 +43,7 @@ export default function MainNavigator() {
       <Stack.Screen name="EventDetails" component={EventDetailsScreen} options={{ title: 'Event Details' }} />
       <Stack.Screen name="CreateBooking" component={CreateBookingScreen} options={{ title: 'Create Booking' }} />
       <Stack.Screen name="BookingDetails" component={BookingDetailsScreen} options={{ title: 'Booking Details' }} />
+      <Stack.Screen name="Notifications" component={NotificationScreen} options={{ title: 'Notifications' }} />
       {/* Chatbot as modal screen (opened from FAB) */}
       <Stack.Group screenOptions={{ presentation: 'modal' }}>
         <Stack.Screen name="Chatbot" component={ChatbotScreen} options={{ headerShown: false }} />

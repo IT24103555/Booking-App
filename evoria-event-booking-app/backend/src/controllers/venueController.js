@@ -2,6 +2,7 @@ const Venue = require('../models/Venue');
 const validateObjectId = require('../utils/validateObjectId');
 const { createVenueSchema, updateVenueSchema } = require('../validations/venueValidation');
 const { resolveStoredImagePath } = require('../middleware/uploadMiddleware');
+const { notifyUsersByVenue } = require('../services/notificationService');
 
 // POST /api/venues
 const createVenue = async (req, res, next) => {
@@ -84,9 +85,22 @@ const updateVenue = async (req, res, next) => {
       return res.status(400).json({ success: false, message: error.details[0].message });
     }
 
+    const previous = await Venue.findById(id);
     const updated = await Venue.findByIdAndUpdate(id, value, { new: true, runValidators: true });
     if (!updated) {
       return res.status(404).json({ success: false, message: 'Venue not found' });
+    }
+
+    const changed = previous && ['name', 'location', 'capacity', 'description', 'status', 'image'].some((field) => String(previous[field] || '') !== String(updated[field] || ''));
+    if (changed) {
+      notifyUsersByVenue(updated._id, {
+        title: 'Venue Updated',
+        message: 'Venue details have been updated.',
+        type: 'venue',
+        priority: 'medium',
+        relatedEntityType: 'Venue',
+        relatedEntityId: updated._id,
+      }).catch((notifyErr) => console.warn('[updateVenue] notification failed:', notifyErr.message));
     }
     return res.status(200).json({ success: true, message: 'Venue updated', data: updated });
   } catch (err) {

@@ -13,6 +13,7 @@ const ticketTypeRoutes = require('./routes/ticketTypeRoutes');
 const venueRoutes = require('./routes/venueRoutes');
 const eventRoutes = require('./routes/eventRoutes');
 const bookingRoutes = require('./routes/bookingRoutes');
+const notificationRoutes = require('./routes/notificationRoutes');
 const sessionAgendaRoutes = require('./routes/sessionAgendaRoutes');
 const chatbotRoutes = require('./routes/chatbotRoutes');
 const { notFound, errorHandler } = require('./middleware/errorMiddleware');
@@ -99,6 +100,7 @@ app.use('/api/ticket-types', ticketTypeRoutes);
 app.use('/api/venues', venueRoutes);
 app.use('/api/events', eventRoutes);
 app.use('/api/bookings', bookingRoutes);
+app.use('/api/notifications', notificationRoutes);
 app.use('/api/session-agendas', sessionAgendaRoutes);
 app.use('/api/chatbot', chatbotRoutes);
 

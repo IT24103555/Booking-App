@@ -2,6 +2,7 @@ const SessionAgenda = require('../models/SessionAgenda');
 const Event = require('../models/Event');
 const validateObjectId = require('../utils/validateObjectId');
 const { createSessionAgendaSchema, updateSessionAgendaSchema } = require('../validations/sessionAgendaValidation');
+const { notifyUsersByEvent } = require('../services/notificationService');
 
 // POST /api/session-agendas
 const createSessionAgenda = async (req, res, next) => {
@@ -95,6 +96,16 @@ const updateSessionAgenda = async (req, res, next) => {
     if (!updated) {
       return res.status(404).json({ success: false, message: 'Session agenda not found' });
     }
+
+    notifyUsersByEvent(updated.eventId?._id || updated.eventId, {
+      title: 'Session Agenda Updated',
+      message: 'The event schedule or session agenda has been updated.',
+      type: 'session',
+      priority: 'medium',
+      relatedEntityType: 'SessionAgenda',
+      relatedEntityId: updated._id,
+    }).catch((notifyErr) => console.warn('[updateSessionAgenda] notification failed:', notifyErr.message));
+
     return res.status(200).json({ success: true, message: 'Session agenda updated', data: updated });
   } catch (err) {
     next(err);

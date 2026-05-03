@@ -4,6 +4,7 @@ const TicketType = require('../models/TicketType');
 const validateObjectId = require('../utils/validateObjectId');
 const { createEventSchema, updateEventSchema } = require('../validations/eventValidation');
 const { resolveStoredImagePath } = require('../middleware/uploadMiddleware');
+const { notifyUsersByEvent } = require('../services/notificationService');
 
 // POST /api/events
 const createEvent = async (req, res, next) => {
@@ -116,6 +117,11 @@ const updateEvent = async (req, res, next) => {
       return res.status(400).json({ success: false, message: 'Invalid event id' });
     }
 
+    const previousEvent = await Event.findById(id);
+    if (!previousEvent) {
+      return res.status(404).json({ success: false, message: 'Event not found' });
+    }
+
     const body = { ...req.body };
     if (req.file) {
       try {
@@ -165,6 +171,30 @@ const updateEvent = async (req, res, next) => {
 
     if (!updated) {
       return res.status(404).json({ success: false, message: 'Event not found' });
+    }
+
+    const changed = ['title', 'description', 'eventDate', 'startTime', 'endTime', 'venueId', 'status'].some((field) => {
+      if (field === 'venueId') {
+        return String(previousEvent.venueId || '') !== String(updated.venueId || '');
+      }
+      if (field === 'eventDate') {
+        return String(previousEvent.eventDate || '') !== String(updated.eventDate || '');
+      }
+      return String(previousEvent[field] || '') !== String(updated[field] || '');
+    });
+
+    if (changed) {
+      const cancelled = previousEvent.status !== 'Cancelled' && updated.status === 'Cancelled';
+      notifyUsersByEvent(updated._id, {
+        title: cancelled ? 'Event Cancelled' : 'Event Updated',
+        message: cancelled
+          ? 'The event you booked has been cancelled.'
+          : 'Event details have been updated.',
+        type: 'event',
+        priority: cancelled ? 'high' : 'medium',
+        relatedEntityType: 'Event',
+        relatedEntityId: updated._id,
+      }).catch((notifyErr) => console.warn('[updateEvent] notification failed:', notifyErr.message));
     }
     return res.status(200).json({ success: true, message: 'Event updated', data: updated });
   } catch (err) {
