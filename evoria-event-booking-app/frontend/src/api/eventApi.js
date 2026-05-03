@@ -13,7 +13,7 @@ export const eventApi = {
     // If payload has imageFile, use FormData
     if (payload.imageFile) {
       const formData = new FormData();
-      formData.append('image', payload.imageFile);
+      formData.append('image', payload.imageFile, payload.imageFile.name || 'image.jpg');
       formData.append('title', payload.title);
       formData.append('description', payload.description);
       formData.append('eventDate', payload.eventDate);
@@ -22,7 +22,6 @@ export const eventApi = {
       formData.append('venueId', payload.venueId);
       formData.append('status', payload.status);
       const res = await apiClient.post('/events', formData, {
-        headers: { 'Content-Type': 'multipart/form-data' },
       });
       return res.data;
     }
@@ -34,7 +33,7 @@ export const eventApi = {
     // If payload has imageFile, use FormData
     if (payload.imageFile) {
       const formData = new FormData();
-      formData.append('image', payload.imageFile);
+      formData.append('image', payload.imageFile, payload.imageFile.name || 'image.jpg');
       formData.append('title', payload.title);
       formData.append('description', payload.description);
       formData.append('eventDate', payload.eventDate);
@@ -43,7 +42,6 @@ export const eventApi = {
       formData.append('venueId', payload.venueId);
       formData.append('status', payload.status);
       const res = await apiClient.put(`/events/${id}`, formData, {
-        headers: { 'Content-Type': 'multipart/form-data' },
       });
       return res.data;
     }
